@@ -1,0 +1,162 @@
+// ─── User & Auth ───────────────────────────────────────────────────────────
+
+export interface UserProfile {
+  id: string
+  email: string
+  full_name: string | null
+  avatar_url: string | null
+  created_at: string
+  last_active_date: string | null
+}
+
+// ─── Tasks ─────────────────────────────────────────────────────────────────
+
+export type TaskStatus = 'active' | 'completed' | 'archived'
+export type TaskUrgency = 'high' | 'medium' | 'low'
+export type TaskGroup = 'now' | 'soon' | 'later'
+
+export interface Task {
+  id: string
+  user_id: string
+  title: string
+  description: string | null
+  status: TaskStatus
+  urgency: TaskUrgency
+  due_date: string | null
+  estimated_minutes: number | null
+  created_at: string
+  updated_at: string
+  completed_at: string | null
+  last_engaged_at: string | null
+}
+
+export interface CreateTaskInput {
+  title: string
+  description?: string
+  urgency?: TaskUrgency
+  due_date?: string | null
+  estimated_minutes?: number | null
+}
+
+export interface UpdateTaskInput {
+  title?: string
+  description?: string
+  urgency?: TaskUrgency
+  due_date?: string | null
+  estimated_minutes?: number | null
+  status?: TaskStatus
+}
+
+// Derived — computed client-side
+export interface TaskWithGroup extends Task {
+  group: TaskGroup
+}
+
+// ─── Habits ────────────────────────────────────────────────────────────────
+
+export type HabitDetailType = 'none' | 'body_sections' | 'amount'
+
+export interface HabitDetailConfig {
+  unit?: string  // for amount type e.g. 'ml', 'oz', 'glasses'
+  max?: number   // for amount type
+}
+
+export interface Habit {
+  id: string
+  user_id: string
+  title: string
+  emoji: string
+  created_at: string
+  active: boolean
+  order_index: number
+  detail_type: HabitDetailType
+  detail_config: HabitDetailConfig | null
+}
+
+export interface HabitCompletionDetails {
+  body_sections?: string[]
+  amount?: number
+  unit?: string
+  note?: string
+}
+
+export interface HabitCompletion {
+  id: string
+  habit_id: string
+  completed_date: string
+  details?: HabitCompletionDetails | null
+}
+
+export interface HabitWithStreak extends Habit {
+  completedToday: boolean
+  currentStreak: number
+  lastDetails?: HabitCompletionDetails | null
+}
+
+export interface CreateHabitInput {
+  title: string
+  emoji: string
+  detail_type?: HabitDetailType
+  detail_config?: HabitDetailConfig
+}
+
+// ─── Streaks ───────────────────────────────────────────────────────────────
+
+export interface UserStreak {
+  user_id: string
+  current_streak: number
+  longest_streak: number
+  last_completion_date: string | null
+  tasks_completed_today: number
+  total_tasks_completed: number
+}
+
+// ─── Recommendation Engine ─────────────────────────────────────────────────
+
+export interface RecommendedTask {
+  task: Task
+  reason: RecommendationReason
+  score: number
+}
+
+export type RecommendationReason =
+  | 'overdue'
+  | 'due_today'
+  | 'due_soon'
+  | 'recently_active'
+  | 'high_urgency'
+
+// ─── Store Types ───────────────────────────────────────────────────────────
+
+export interface TaskStore {
+  tasks: Task[]
+  isLoading: boolean
+  error: string | null
+  fetchTasks: () => Promise<void>
+  createTask: (input: CreateTaskInput) => Promise<Task | null>
+  updateTask: (id: string, input: UpdateTaskInput) => Promise<void>
+  completeTask: (id: string) => Promise<void>
+  deleteTask: (id: string) => Promise<void>
+  getRecommendedTask: () => RecommendedTask | null
+  getTasksByGroup: () => Record<TaskGroup, Task[]>
+}
+
+export interface HabitStore {
+  habits: Habit[]
+  completions: HabitCompletion[]
+  isLoading: boolean
+  fetchHabits: () => Promise<void>
+  fetchTodayCompletions: () => Promise<void>
+  toggleHabit: (habitId: string, details?: HabitCompletionDetails) => Promise<void>
+  createHabit: (input: CreateHabitInput) => Promise<void>
+  getHabitsWithStreaks: () => HabitWithStreak[]
+}
+
+export interface UserStore {
+  profile: UserProfile | null
+  streak: UserStreak | null
+  isLoading: boolean
+  fetchProfile: () => Promise<void>
+  fetchStreak: () => Promise<void>
+  updateStreak: () => Promise<void>
+}

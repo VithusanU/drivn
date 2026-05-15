@@ -1,0 +1,111 @@
+'use client'
+
+import { create } from 'zustand'
+import { createClient } from '@/lib/supabase/client'
+import { getRecommendedTask, groupTasks } from '@/lib/engine/recommendation'
+import type { Task, TaskStore, CreateTaskInput, UpdateTaskInput, TaskGroup, RecommendedTask } from '@/types'
+
+export const useTaskStore = create<TaskStore>((set, get) => ({
+  tasks: [],
+  isLoading: false,
+  error: null,
+
+  fetchTasks: async () => {
+    const supabase = createClient()
+    set({ isLoading: true, error: null })
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      set({ tasks: data ?? [], isLoading: false })
+    } catch (err) {
+      set({ error: (err as Error).message, isLoading: false })
+    }
+  },
+
+  createTask: async (input: CreateTaskInput) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert({
+        user_id: user.id,
+        title: input.title,
+        description: input.description ?? null,
+        urgency: input.urgency ?? 'medium',
+        due_date: input.due_date ?? null,
+        estimated_minutes: input.estimated_minutes ?? null,
+      })
+      .select()
+      .single()
+
+    if (error || !data) return null
+
+    set((state) => ({ tasks: [data, ...state.tasks] }))
+    return data
+  },
+
+  updateTask: async (id: string, input: UpdateTaskInput) => {
+    const supabase = createClient()
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .update(input)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error || !data) return
+
+    set((state) => ({
+      tasks: state.tasks.map((t) => (t.id === id ? data : t)),
+    }))
+  },
+
+  completeTask: async (id: string) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    // Mark task as completed
+    await supabase
+      .from('tasks')
+      .update({ status: 'completed', completed_at: new Date().toISOString() })
+      .eq('id', id)
+
+    // Record streak update via server function
+    await supabase.rpc('record_task_completion', { p_user_id: user.id })
+
+    // Remove from local state
+    set((state) => ({
+      tasks: state.tasks.filter((t) => t.id !== id),
+    }))
+  },
+
+  deleteTask: async (id: string) => {
+    const supabase = createClient()
+
+    await supabase
+      .from('tasks')
+      .update({ status: 'archived' })
+      .eq('id', id)
+
+    set((state) => ({
+      tasks: state.tasks.filter((t) => t.id !== id),
+    }))
+  },
+
+  getRecommendedTask: (): RecommendedTask | null => {
+    return getRecommendedTask(get().tasks)
+  },
+
+  getTasksByGroup: (): Record<TaskGroup, Task[]> => {
+    return groupTasks(get().tasks)
+  },
+}))

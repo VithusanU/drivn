@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ── Light mode ─────────────────────────────────────────────── */
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 240 10% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 10%;
+
+    --primary: 224 76% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 10% 92%;
+    --secondary-foreground: 240 10% 25%;
+
+    --muted: 240 10% 92%;
+    --muted-foreground: 240 5% 48%;
+
+    --destructive: 0 72% 52%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 10% 86%;
+    --input: 240 10% 86%;
+    --ring: 224 76% 55%;
+
+    --drivn-green: 142 65% 38%;
+
+    --radius: 0.75rem;
+  }
+
+  /* ── Dark mode ──────────────────────────────────────────────── */
+  .dark {
+    --background: 240 10% 4%;
+    --foreground: 0 0% 95%;
+
+    --card: 240 8% 7%;
+    --card-foreground: 0 0% 95%;
+
+    --primary: 224 76% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 6% 12%;
+    --secondary-foreground: 0 0% 85%;
+
+    --muted: 240 6% 10%;
+    --muted-foreground: 240 5% 55%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 6% 14%;
+    --input: 240 6% 14%;
+    --ring: 224 76% 60%;
+
+    --drivn-green: 142 72% 52%;
+
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body {
+    @apply bg-background text-foreground;
+    padding: 0;
+    margin: 0;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scroll-momentum {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .touch-target {
+    min-height: 44px;
+  }
+}

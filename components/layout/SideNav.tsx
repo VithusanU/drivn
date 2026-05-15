@@ -1,0 +1,67 @@
+'use client'
+
+import Image from 'next/image'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { Home, Heart, User } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import ThemeToggle from './ThemeToggle'
+
+const NAV_ITEMS = [
+  { href: '/', label: 'Home', icon: Home },
+  { href: '/habits', label: 'Habits', icon: Heart },
+  { href: '/profile', label: 'Profile', icon: User },
+]
+
+export default function SideNav() {
+  const pathname = usePathname()
+
+  return (
+    <aside className={cn(
+      'hidden md:flex flex-col',
+      'fixed left-0 top-0 h-screen w-[220px]',
+      'bg-background border-r border-border',
+      'px-4 py-6 z-30'
+    )}>
+      {/* Brand */}
+      <div className="mb-8 px-2">
+        <Image
+          src="/logo.png"
+          alt="Drivn"
+          width={120}
+          height={120}
+          className="rounded-xl dark:invert"
+          priority
+        />
+      </div>
+
+      {/* Nav items */}
+      <nav className="flex-1 space-y-1">
+        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          const isActive = pathname === href
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+              )}
+            >
+              <Icon className="w-4 h-4 flex-shrink-0" strokeWidth={isActive ? 2 : 1.5} />
+              {label}
+            </Link>
+          )
+        })}
+      </nav>
+
+      {/* Bottom: theme toggle */}
+      <div className="flex items-center justify-between px-2">
+        <span className="text-xs text-muted-foreground/50">Theme</span>
+        <ThemeToggle />
+      </div>
+    </aside>
+  )
+}
