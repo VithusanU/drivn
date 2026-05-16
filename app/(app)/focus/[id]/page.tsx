@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Pencil } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
 import { formatDueDate, cn } from '@/lib/utils'
 import CompletionScreen from '@/components/tasks/CompletionScreen'
 import FocusTimer from '@/components/focus/FocusTimer'
 import MusicWidget from '@/components/focus/MusicWidget'
+import TaskEditSheet from '@/components/tasks/TaskEditSheet'
 
 interface FocusModePageProps {
   params: { id: string }
@@ -25,6 +26,7 @@ export default function FocusModePage({ params }: FocusModePageProps) {
   const [completing, setCompleting] = useState(false)
   const [completed, setCompleted] = useState(false)
   const [newStreak, setNewStreak] = useState(0)
+  const [editing, setEditing] = useState(false)
 
   const task = tasks.find((t) => t.id === params.id)
 
@@ -65,13 +67,20 @@ export default function FocusModePage({ params }: FocusModePageProps) {
       className="min-h-screen flex flex-col bg-background px-6"
     >
       {/* Back */}
-      <div className="pt-14 pb-4">
+      <div className="pt-14 pb-4 flex items-center justify-between">
         <button
           onClick={() => router.back()}
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Back
+        </button>
+        <button
+          onClick={() => setEditing(true)}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground/50 hover:text-foreground transition-colors"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+          Edit
         </button>
       </div>
 
@@ -185,5 +194,9 @@ export default function FocusModePage({ params }: FocusModePageProps) {
         </motion.div>
       </div>
     </motion.div>
+
+    {task && (
+      <TaskEditSheet task={task} open={editing} onClose={() => setEditing(false)} />
+    )}
   )
 }
