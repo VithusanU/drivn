@@ -61,6 +61,7 @@ export default function FocusModePage({ params }: FocusModePageProps) {
   const returnPath = `/focus/${params.id}`
 
   return (
+    <>
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -198,5 +199,6 @@ export default function FocusModePage({ params }: FocusModePageProps) {
     {task && (
       <TaskEditSheet task={task} open={editing} onClose={() => setEditing(false)} />
     )}
+    </>
   )
 }
