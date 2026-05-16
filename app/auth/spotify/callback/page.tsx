@@ -1,11 +1,10 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { exchangeSpotifyCode } from '@/lib/spotify'
 
 export default function SpotifyCallbackPage() {
-  const router = useRouter()
   const searchParams = useSearchParams()
 
   useEffect(() => {
@@ -14,12 +13,12 @@ export default function SpotifyCallbackPage() {
     const returnPath = sessionStorage.getItem('spotify_return') ?? '/'
 
     if (error || !code) {
-      router.replace(returnPath)
+      window.location.replace(returnPath)
       return
     }
 
     exchangeSpotifyCode(code).then(() => {
-      router.replace(returnPath)
+      window.location.replace(returnPath)
     })
   }, [])
 
