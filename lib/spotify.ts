@@ -3,6 +3,7 @@ const SCOPES = [
   'user-read-playback-state',
   'user-modify-playback-state',
   'user-read-currently-playing',
+  'streaming',
 ].join(' ')
 
 function getRedirectUri() {
@@ -166,4 +167,12 @@ export async function spotifyNext() {
 
 export async function spotifyPrev() {
   await spotifyFetch('/me/player/previous', { method: 'POST' })
+}
+
+export async function transferPlayback(deviceId: string, play = false) {
+  await spotifyFetch('/me/player', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ device_ids: [deviceId], play }),
+  })
 }

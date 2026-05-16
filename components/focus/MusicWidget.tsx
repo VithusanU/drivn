@@ -1,13 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SkipBack, SkipForward, Play, Pause, Music, Unlink, ExternalLink } from 'lucide-react'
-import {
-  isSpotifyConnected, startSpotifyAuth, disconnectSpotify,
-  getCurrentTrack, spotifyPlay, spotifyPause, spotifyNext, spotifyPrev,
-  type SpotifyTrack,
-} from '@/lib/spotify'
+import { isSpotifyConnected, startSpotifyAuth, disconnectSpotify } from '@/lib/spotify'
+import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer'
 import { cn } from '@/lib/utils'
 
 interface MusicWidgetProps {
@@ -16,25 +13,14 @@ interface MusicWidgetProps {
 
 export default function MusicWidget({ returnPath }: MusicWidgetProps) {
   const [connected, setConnected] = useState(false)
-  const [track, setTrack] = useState<SpotifyTrack | null>(null)
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const { track, ready, toggle, next, prev } = useSpotifyPlayer(connected)
 
   useEffect(() => {
     setConnected(isSpotifyConnected())
   }, [])
-
-  useEffect(() => {
-    if (!connected) return
-    const poll = async () => {
-      const t = await getCurrentTrack()
-      setTrack(t)
-    }
-    poll()
-    pollRef.current = setInterval(poll, 5000)
-    return () => clearInterval(pollRef.current!)
-  }, [connected])
 
   const handleConnect = async () => {
     setLoading(true)
@@ -44,23 +30,11 @@ export default function MusicWidget({ returnPath }: MusicWidgetProps) {
   const handleDisconnect = () => {
     disconnectSpotify()
     setConnected(false)
-    setTrack(null)
-    clearInterval(pollRef.current!)
   }
 
-  const handlePlayPause = async () => {
-    if (!track) return
-    if (track.isPlaying) {
-      await spotifyPause()
-      setTrack((t) => t ? { ...t, isPlaying: false } : null)
-    } else {
-      await spotifyPlay()
-      setTrack((t) => t ? { ...t, isPlaying: true } : null)
-    }
-  }
-
-  const handleNext = async () => { await spotifyNext(); setTimeout(async () => setTrack(await getCurrentTrack()), 500) }
-  const handlePrev = async () => { await spotifyPrev(); setTimeout(async () => setTrack(await getCurrentTrack()), 500) }
+  const handlePlayPause = () => toggle()
+  const handleNext = () => next()
+  const handlePrev = () => prev()
 
   return (
     <div className="w-full max-w-xs mx-auto">
@@ -123,7 +97,9 @@ export default function MusicWidget({ returnPath }: MusicWidgetProps) {
               ) : (
                 /* ── Connected ── */
                 <>
-                  {track ? (
+                  {!ready && !track ? (
+                    <p className="text-[12px] text-muted-foreground/50 text-center">Connecting player…</p>
+                  ) : track ? (
                     <div className="flex items-center gap-3">
                       {track.albumArt && (
                         <img
