@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Zap, SkipForward, ArrowRight } from 'lucide-react'
+import { Zap, SkipForward, Trash2 } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { getReasonLabel, formatEstimatedTime } from '@/lib/engine/recommendation'
 import { formatDueDate, cn } from '@/lib/utils'
@@ -19,6 +19,7 @@ const REASON_COLORS: Record<RecommendationReason, string> = {
 
 export default function NextBestAction() {
   const getRecommendedTask = useTaskStore((s) => s.getRecommendedTask)
+  const deleteTask = useTaskStore((s) => s.deleteTask)
   const tasks = useTaskStore((s) => s.tasks) // subscribe to task list changes
   const [skippedIds, setSkippedIds] = useState<string[]>([])
   const router = useRouter()
@@ -118,6 +119,17 @@ export default function NextBestAction() {
           >
             <SkipForward className="w-3.5 h-3.5" />
             Skip
+          </button>
+          <button
+            onClick={() => deleteTask(task.id)}
+            className={cn(
+              'flex items-center justify-center px-3 py-3 rounded-xl',
+              'bg-white/5 border border-white/8 text-white/40',
+              'transition-all active:scale-[0.97] hover:bg-destructive/20 hover:text-destructive/70 hover:border-destructive/30'
+            )}
+            aria-label="Delete task"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </motion.div>
