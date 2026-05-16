@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Zap, SkipForward, Trash2 } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
-import { getReasonLabel, formatEstimatedTime } from '@/lib/engine/recommendation'
+import { getReasonLabel, formatEstimatedTime, getRecommendedTask } from '@/lib/engine/recommendation'
 import { formatDueDate, cn } from '@/lib/utils'
 import type { RecommendationReason } from '@/types'
 
@@ -18,18 +18,13 @@ const REASON_COLORS: Record<RecommendationReason, string> = {
 }
 
 export default function NextBestAction() {
-  const getRecommendedTask = useTaskStore((s) => s.getRecommendedTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
-  const tasks = useTaskStore((s) => s.tasks) // subscribe to task list changes
+  const tasks = useTaskStore((s) => s.tasks)
   const [skippedIds, setSkippedIds] = useState<string[]>([])
   const router = useRouter()
 
-  // Get recommendation excluding skipped tasks
-  const allTasks = tasks.filter((t) => !skippedIds.includes(t.id))
-  const recommendation = getRecommendedTask()
-
-  // Re-derive excluding skips
-  const { getRecommendedTask: getRec } = useTaskStore.getState()
+  const filteredTasks = tasks.filter((t) => !skippedIds.includes(t.id))
+  const recommendation = getRecommendedTask(filteredTasks)
 
   if (!recommendation || tasks.length === 0) {
     return (
