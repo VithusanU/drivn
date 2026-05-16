@@ -4,10 +4,14 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { format } from 'date-fns'
-import { LogOut, Bell, Clock, Heart, Sun, Moon } from 'lucide-react'
+import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/stores/userStore'
 import { cn } from '@/lib/utils'
+import {
+  subscribeToPush, unsubscribeFromPush, isSubscribed,
+  saveReminderTime, getReminderTime,
+} from '@/lib/notifications'
 
 export default function ProfilePage() {
   const profile = useUserStore((s) => s.profile)
@@ -15,12 +19,39 @@ export default function ProfilePage() {
   const router = useRouter()
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const [notifEnabled, setNotifEnabled] = useState(false)
+  const [reminderTime, setReminderTime] = useState('')
+  const [showTimePicker, setShowTimePicker] = useState(false)
+  const [savingTime, setSavingTime] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    isSubscribed().then(setNotifEnabled)
+    getReminderTime().then((t) => { if (t) setReminderTime(t.slice(0, 5)) })
+  }, [])
 
   const handleSignOut = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')
+  }
+
+  const handleToggleNotifications = async () => {
+    if (notifEnabled) {
+      await unsubscribeFromPush()
+      setNotifEnabled(false)
+    } else {
+      const ok = await subscribeToPush()
+      setNotifEnabled(ok)
+    }
+  }
+
+  const handleSaveReminder = async () => {
+    if (!reminderTime) return
+    setSavingTime(true)
+    await saveReminderTime(reminderTime)
+    setSavingTime(false)
+    setShowTimePicker(false)
   }
 
   const initials = profile?.full_name
@@ -66,10 +97,7 @@ export default function ProfilePage() {
           { value: streak?.total_tasks_completed ?? 0, label: 'Tasks done' },
           { value: streak?.longest_streak ?? 0, label: 'Best streak' },
         ].map(({ value, label }) => (
-          <div
-            key={label}
-            className="bg-card/50 border border-border/50 rounded-2xl p-3.5 text-center"
-          >
+          <div key={label} className="bg-card/50 border border-border/50 rounded-2xl p-3.5 text-center">
             <p className="text-[22px] font-medium text-foreground">{value}</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
           </div>
@@ -81,33 +109,95 @@ export default function ProfilePage() {
         Settings
       </p>
       <div className="rounded-2xl border border-border overflow-hidden">
-        {[
-          { icon: Bell, label: 'Notifications', action: () => {} },
-          { icon: Clock, label: 'Daily reminder', action: () => {} },
-          { icon: Heart, label: 'Manage habits', action: () => router.push('/habits') },
-          {
-            icon: mounted && resolvedTheme === 'dark' ? Moon : Sun,
-            label: 'Theme',
-            value: mounted ? (resolvedTheme === 'dark' ? 'Dark' : 'Light') : '—',
-            action: () => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark'),
-          },
-        ].map(({ icon: Icon, label, value, action }, i, arr) => (
+
+        {/* Notifications toggle */}
+        <button
+          onClick={handleToggleNotifications}
+          className="w-full flex items-center justify-between px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors border-b border-border/50"
+        >
+          <div className="flex items-center gap-3">
+            {notifEnabled
+              ? <Bell className="w-4 h-4 text-primary" />
+              : <BellOff className="w-4 h-4 text-muted-foreground" />
+            }
+            <span>Notifications</span>
+          </div>
+          <span className={cn('text-xs', notifEnabled ? 'text-primary' : 'text-muted-foreground/50')}>
+            {notifEnabled ? 'On' : 'Off'}
+          </span>
+        </button>
+
+        {/* Daily reminder */}
+        <div className="border-b border-border/50">
           <button
-            key={label}
-            onClick={action}
+            onClick={() => notifEnabled && setShowTimePicker((v) => !v)}
             className={cn(
               'w-full flex items-center justify-between px-4 py-3.5',
               'text-sm text-foreground/65 hover:bg-secondary/50 transition-colors',
-              i < arr.length - 1 && 'border-b border-border/50'
+              !notifEnabled && 'opacity-40 cursor-not-allowed'
             )}
           >
             <div className="flex items-center gap-3">
-              <Icon className="w-4 h-4 text-muted-foreground" />
-              <span>{label}</span>
+              <Clock className="w-4 h-4 text-muted-foreground" />
+              <span>Daily reminder</span>
             </div>
-            <span className="text-muted-foreground/50 text-xs">{value ?? '›'}</span>
+            <span className="text-muted-foreground/50 text-xs">
+              {reminderTime || '—'}
+            </span>
           </button>
-        ))}
+
+          {showTimePicker && (
+            <div className="px-4 pb-4 flex items-center gap-2">
+              <input
+                type="time"
+                value={reminderTime}
+                onChange={(e) => setReminderTime(e.target.value)}
+                className={cn(
+                  'flex-1 px-3 py-2 rounded-xl border border-border/50 text-[13px]',
+                  'bg-background text-foreground/70 outline-none focus:border-primary/40',
+                  '[color-scheme:dark]'
+                )}
+              />
+              <button
+                onClick={handleSaveReminder}
+                disabled={savingTime || !reminderTime}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-[13px] disabled:opacity-50"
+              >
+                <Check className="w-3.5 h-3.5" />
+                {savingTime ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Manage habits */}
+        <button
+          onClick={() => router.push('/habits')}
+          className="w-full flex items-center justify-between px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors border-b border-border/50"
+        >
+          <div className="flex items-center gap-3">
+            <Heart className="w-4 h-4 text-muted-foreground" />
+            <span>Manage habits</span>
+          </div>
+          <span className="text-muted-foreground/50 text-xs">›</span>
+        </button>
+
+        {/* Theme */}
+        <button
+          onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+          className="w-full flex items-center justify-between px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            {mounted && resolvedTheme === 'dark'
+              ? <Moon className="w-4 h-4 text-muted-foreground" />
+              : <Sun className="w-4 h-4 text-muted-foreground" />
+            }
+            <span>Theme</span>
+          </div>
+          <span className="text-muted-foreground/50 text-xs">
+            {mounted ? (resolvedTheme === 'dark' ? 'Dark' : 'Light') : '—'}
+          </span>
+        </button>
       </div>
 
       {/* Sign out */}
@@ -122,6 +212,12 @@ export default function ProfilePage() {
         <LogOut className="w-4 h-4" />
         Sign out
       </button>
+
+      {!notifEnabled && (
+        <p className="text-[11px] text-muted-foreground/40 text-center mt-4">
+          Enable notifications to set a daily reminder
+        </p>
+      )}
     </div>
   )
 }
