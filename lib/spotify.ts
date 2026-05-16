@@ -31,12 +31,11 @@ async function generateChallenge(verifier: string): Promise<string> {
 
 // ── Auth flow ────────────────────────────────────────────────────────────────
 
-export async function startSpotifyAuth(returnPath: string) {
+export async function startSpotifyAuth() {
   const verifier = base64url(randomBytes(32))
   const challenge = await generateChallenge(verifier)
 
   sessionStorage.setItem('spotify_verifier', verifier)
-  sessionStorage.setItem('spotify_return', returnPath)
 
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
@@ -47,7 +46,32 @@ export async function startSpotifyAuth(returnPath: string) {
     scope: SCOPES,
   })
 
-  window.location.href = `https://accounts.spotify.com/authorize?${params}`
+  const url = `https://accounts.spotify.com/authorize?${params}`
+  const popup = window.open(url, 'spotify-auth', 'width=500,height=700,left=400,top=100')
+
+  return new Promise<boolean>((resolve) => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'spotify-auth-success') {
+        window.removeEventListener('message', onMessage)
+        popup?.close()
+        resolve(true)
+      } else if (event.data?.type === 'spotify-auth-error') {
+        window.removeEventListener('message', onMessage)
+        popup?.close()
+        resolve(false)
+      }
+    }
+    window.addEventListener('message', onMessage)
+
+    // Fallback: if popup is closed manually
+    const timer = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(timer)
+        window.removeEventListener('message', onMessage)
+        resolve(false)
+      }
+    }, 500)
+  })
 }
 
 export async function exchangeSpotifyCode(code: string): Promise<boolean> {

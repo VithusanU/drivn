@@ -7,11 +7,7 @@ import { isSpotifyConnected, startSpotifyAuth, disconnectSpotify } from '@/lib/s
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer'
 import { cn } from '@/lib/utils'
 
-interface MusicWidgetProps {
-  returnPath: string
-}
-
-export default function MusicWidget({ returnPath }: MusicWidgetProps) {
+export default function MusicWidget() {
   const [connected, setConnected] = useState(false)
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -24,7 +20,9 @@ export default function MusicWidget({ returnPath }: MusicWidgetProps) {
 
   const handleConnect = async () => {
     setLoading(true)
-    await startSpotifyAuth(returnPath)
+    const ok = await startSpotifyAuth()
+    setLoading(false)
+    if (ok) setConnected(true)
   }
 
   const handleDisconnect = () => {

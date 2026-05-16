@@ -153,7 +153,7 @@ export default function FocusModePage({ params }: FocusModePageProps) {
           transition={{ delay: 0.25 }}
           className="w-full"
         >
-          <MusicWidget returnPath={returnPath} />
+          <MusicWidget />
         </motion.div>
 
         {/* Complete + Pause — only shown when timer hasn't ended */}

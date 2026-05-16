@@ -13,12 +13,25 @@ function SpotifyCallback() {
     const returnPath = sessionStorage.getItem('spotify_return') ?? '/'
 
     if (error || !code) {
-      window.location.replace(returnPath)
+      if (window.opener) {
+        window.opener.postMessage({ type: 'spotify-auth-error' }, window.location.origin)
+        window.close()
+      } else {
+        window.location.replace(returnPath)
+      }
       return
     }
 
-    exchangeSpotifyCode(code).then(() => {
-      window.location.replace(returnPath)
+    exchangeSpotifyCode(code).then((ok) => {
+      if (window.opener) {
+        window.opener.postMessage(
+          { type: ok ? 'spotify-auth-success' : 'spotify-auth-error' },
+          window.location.origin,
+        )
+        window.close()
+      } else {
+        window.location.replace(returnPath)
+      }
     })
   }, [])
 
