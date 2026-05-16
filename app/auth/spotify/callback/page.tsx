@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
+import { Suspense, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { exchangeSpotifyCode } from '@/lib/spotify'
 
-export default function SpotifyCallbackPage() {
+function SpotifyCallback() {
   const searchParams = useSearchParams()
 
   useEffect(() => {
@@ -26,5 +26,17 @@ export default function SpotifyCallbackPage() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <p className="text-sm text-muted-foreground animate-pulse">Connecting Spotify…</p>
     </div>
+  )
+}
+
+export default function SpotifyCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground animate-pulse">Connecting Spotify…</p>
+      </div>
+    }>
+      <SpotifyCallback />
+    </Suspense>
   )
 }
