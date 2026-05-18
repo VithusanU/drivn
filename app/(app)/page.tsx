@@ -4,6 +4,7 @@ import TaskGroups from '@/components/dashboard/TaskGroups'
 import HabitStrip from '@/components/dashboard/HabitStrip'
 import MomentumCard from '@/components/dashboard/MomentumCard'
 import QuickCapture from '@/components/dashboard/QuickCapture'
+import MotivationalQuote from '@/components/dashboard/MotivationalQuote'
 
 export default function HomePage() {
   return (
@@ -13,6 +14,9 @@ export default function HomePage() {
       <div className="flex-1 px-4 pb-6 space-y-6 overflow-y-auto no-scrollbar scroll-momentum">
         {/* Core: Next Best Action */}
         <NextBestAction />
+
+        {/* Daily motivational quote */}
+        <MotivationalQuote />
 
         {/* Task Groups: Now / Soon / Later */}
         <TaskGroups />
