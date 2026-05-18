@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import { createClient } from '@/lib/supabase/client'
 import { getRecommendedTask, groupTasks } from '@/lib/engine/recommendation'
+import { Analytics } from '@/lib/analytics'
 import type { Task, TaskStore, CreateTaskInput, UpdateTaskInput, TaskGroup, RecommendedTask } from '@/types'
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
@@ -48,6 +49,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     if (error || !data) return null
 
     set((state) => ({ tasks: [data, ...state.tasks] }))
+    Analytics.taskCreated(input.urgency ?? 'medium')
     return data
   },
 
@@ -86,6 +88,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     set((state) => ({
       tasks: state.tasks.filter((t) => t.id !== id),
     }))
+    Analytics.taskCompleted()
   },
 
   deleteTask: async (id: string) => {

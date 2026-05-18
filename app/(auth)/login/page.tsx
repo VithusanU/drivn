@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
+import { Analytics } from '@/lib/analytics'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -16,6 +17,7 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setLoading(true)
     setError(null)
+    Analytics.signupStarted('google')
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback` },
@@ -28,6 +30,7 @@ export default function LoginPage() {
     if (!email.trim()) return
     setLoading(true)
     setError(null)
+    Analytics.signupStarted('email')
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },

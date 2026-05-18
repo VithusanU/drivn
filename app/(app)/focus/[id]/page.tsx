@@ -7,6 +7,7 @@ import { ArrowLeft, Pencil } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
 import { formatDueDate, cn } from '@/lib/utils'
+import { Analytics } from '@/lib/analytics'
 import CompletionScreen from '@/components/tasks/CompletionScreen'
 import FocusTimer from '@/components/focus/FocusTimer'
 import MusicWidget from '@/components/focus/MusicWidget'
@@ -33,6 +34,7 @@ export default function FocusModePage({ params }: FocusModePageProps) {
   useEffect(() => {
     if (task) {
       useTaskStore.getState().updateTask(task.id, { last_engaged_at: new Date().toISOString() } as any)
+      Analytics.focusSessionStarted(task.id, !!task.estimated_minutes)
     }
   }, [task?.id])
 
@@ -47,6 +49,7 @@ export default function FocusModePage({ params }: FocusModePageProps) {
   const handleComplete = async () => {
     if (!task) return
     setCompleting(true)
+    Analytics.focusSessionCompleted(task.id)
     await completeTask(task.id)
     await updateStreak()
     const updatedStreak = await fetchStreak().then(() => useUserStore.getState().streak)
