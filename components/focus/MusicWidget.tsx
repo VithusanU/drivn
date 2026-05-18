@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { SkipBack, SkipForward, Play, Pause, Music, Unlink, ListMusic, ChevronLeft, Clock, CheckCircle } from 'lucide-react'
+import { SkipBack, SkipForward, Play, Pause, Music, Unlink, ListMusic, ChevronLeft, Clock, CheckCircle, ExternalLink } from 'lucide-react'
 import {
   isSpotifyConnected, startSpotifyAuth, disconnectSpotify,
   getUserPlaylists, getPlaylistTracks, playContext,
@@ -161,14 +161,35 @@ export default function MusicWidget() {
                     <p className="text-[12px] text-muted-foreground/50 text-center">Loading…</p>
 
                   ) : requestStatus === 'none' ? (
-                    /* ── Request access form ── */
+                    /* ── Options: open in tab or request access ── */
                     <div className="space-y-3">
-                      <div className="text-center">
-                        <p className="text-[13px] font-medium text-foreground">Connect Spotify</p>
-                        <p className="text-[11px] text-muted-foreground/60 mt-0.5">
-                          Enter your Spotify email to request access
-                        </p>
+                      <p className="text-[12px] text-muted-foreground/60 text-center">Connect music</p>
+
+                      {/* Open in new tab */}
+                      <a
+                        href="https://open.spotify.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cn(
+                          'w-full flex items-center justify-center gap-2.5',
+                          'py-2.5 rounded-xl border border-border',
+                          'bg-[#1DB954]/10 border-[#1DB954]/30 text-[#1DB954]',
+                          'text-[13px] font-medium transition-all hover:bg-[#1DB954]/15'
+                        )}
+                      >
+                        <SpotifyIcon />
+                        Open Spotify
+                        <ExternalLink className="w-3 h-3 opacity-60" />
+                      </a>
+
+                      {/* Divider */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-px bg-border" />
+                        <span className="text-[10px] text-muted-foreground/40">or connect in-app</span>
+                        <div className="flex-1 h-px bg-border" />
                       </div>
+
+                      {/* Request access form */}
                       <form onSubmit={handleSubmitRequest} className="space-y-2">
                         <input
                           type="email"
@@ -188,14 +209,13 @@ export default function MusicWidget() {
                           disabled={submitting || !spotifyEmail}
                           className={cn(
                             'w-full flex items-center justify-center gap-2',
-                            'py-2.5 rounded-xl',
-                            'bg-[#1DB954]/10 border border-[#1DB954]/30 text-[#1DB954]',
-                            'text-[13px] font-medium transition-all hover:bg-[#1DB954]/15',
+                            'py-2.5 rounded-xl border border-border',
+                            'text-muted-foreground text-[13px] font-medium',
+                            'transition-all hover:bg-secondary',
                             'disabled:opacity-50'
                           )}
                         >
-                          <SpotifyIcon />
-                          {submitting ? 'Requesting…' : 'Request Spotify Access'}
+                          {submitting ? 'Requesting…' : 'Request in-app access'}
                         </button>
                         {submitError && (
                           <p className="text-[11px] text-destructive text-center">{submitError}</p>
