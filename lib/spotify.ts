@@ -9,8 +9,10 @@ const SCOPES = [
 ].join(' ')
 
 function getRedirectUri() {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== 'undefined' ? window.location.origin : '')
-  return `${base}/auth/spotify/callback`
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/auth/spotify/callback`
+  }
+  return `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/auth/spotify/callback`
 }
 
 // ── PKCE helpers ────────────────────────────────────────────────────────────
@@ -55,7 +57,8 @@ export async function startSpotifyAuth() {
   if (popup) {
     popup.location.href = url
   } else {
-    // Popup was blocked — fall back to redirect
+    // Popup was blocked — fall back to full-page redirect
+    sessionStorage.setItem('spotify_return', window.location.pathname)
     window.location.href = url
     return new Promise<boolean>(() => {})
   }

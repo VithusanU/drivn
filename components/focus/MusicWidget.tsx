@@ -17,6 +17,7 @@ export default function MusicWidget() {
   const [connected, setConnected] = useState(false)
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [authError, setAuthError] = useState(false)
   const [view, setView] = useState<View>('player')
   const [playlists, setPlaylists] = useState<SpotifyPlaylist[]>([])
   const [tracks, setTracks] = useState<SpotifyPlaylistTrack[]>([])
@@ -27,13 +28,22 @@ export default function MusicWidget() {
 
   useEffect(() => {
     setConnected(isSpotifyConnected())
+    // Re-check after returning from a full-page redirect auth flow
+    const onFocus = () => setConnected(isSpotifyConnected())
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
   }, [])
 
   const handleConnect = async () => {
     setLoading(true)
+    setAuthError(false)
     const ok = await startSpotifyAuth()
     setLoading(false)
-    if (ok) setConnected(true)
+    if (ok) {
+      setConnected(true)
+    } else {
+      setAuthError(true)
+    }
   }
 
   const handleDisconnect = () => {
@@ -109,6 +119,11 @@ export default function MusicWidget() {
                     <SpotifyIcon />
                     {loading ? 'Connecting…' : 'Connect Spotify'}
                   </button>
+                  {authError && (
+                    <p className="text-[11px] text-destructive text-center">
+                      Connection failed. Try again or check your Spotify account.
+                    </p>
+                  )}
                   <a
                     href="https://music.apple.com"
                     target="_blank"
