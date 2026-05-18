@@ -1,16 +1,27 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { SkipBack, SkipForward, Play, Pause, Music, Unlink, ExternalLink } from 'lucide-react'
-import { isSpotifyConnected, startSpotifyAuth, disconnectSpotify } from '@/lib/spotify'
+import { SkipBack, SkipForward, Play, Pause, Music, Unlink, ExternalLink, ChevronLeft, ListMusic } from 'lucide-react'
+import {
+  isSpotifyConnected, startSpotifyAuth, disconnectSpotify,
+  getUserPlaylists, getPlaylistTracks, playContext,
+  type SpotifyPlaylist, type SpotifyPlaylistTrack,
+} from '@/lib/spotify'
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer'
 import { cn } from '@/lib/utils'
+
+type View = 'player' | 'playlists' | 'tracks'
 
 export default function MusicWidget() {
   const [connected, setConnected] = useState(false)
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [view, setView] = useState<View>('player')
+  const [playlists, setPlaylists] = useState<SpotifyPlaylist[]>([])
+  const [tracks, setTracks] = useState<SpotifyPlaylistTrack[]>([])
+  const [selectedPlaylist, setSelectedPlaylist] = useState<SpotifyPlaylist | null>(null)
+  const [browseLoading, setBrowseLoading] = useState(false)
 
   const { track, ready, toggle, next, prev } = useSpotifyPlayer(connected)
 
@@ -28,11 +39,37 @@ export default function MusicWidget() {
   const handleDisconnect = () => {
     disconnectSpotify()
     setConnected(false)
+    setView('player')
   }
 
-  const handlePlayPause = () => toggle()
-  const handleNext = () => next()
-  const handlePrev = () => prev()
+  const handleBrowse = useCallback(async () => {
+    setView('playlists')
+    if (playlists.length > 0) return
+    setBrowseLoading(true)
+    const data = await getUserPlaylists()
+    setPlaylists(data)
+    setBrowseLoading(false)
+  }, [playlists.length])
+
+  const handleSelectPlaylist = async (playlist: SpotifyPlaylist) => {
+    setSelectedPlaylist(playlist)
+    setView('tracks')
+    setBrowseLoading(true)
+    const data = await getPlaylistTracks(playlist.id)
+    setTracks(data)
+    setBrowseLoading(false)
+  }
+
+  const handlePlayTrack = async (trackUri: string) => {
+    if (!selectedPlaylist) return
+    await playContext(selectedPlaylist.uri, trackUri)
+    setView('player')
+  }
+
+  const handlePlayPlaylist = async (playlist: SpotifyPlaylist) => {
+    await playContext(playlist.uri)
+    setView('player')
+  }
 
   return (
     <div className="w-full max-w-xs mx-auto">
@@ -52,15 +89,12 @@ export default function MusicWidget() {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className={cn(
-              'rounded-2xl border border-border bg-card p-4',
-              'flex flex-col gap-3'
-            )}>
+            <div className="rounded-2xl border border-border bg-card p-4 flex flex-col gap-3">
+
               {!connected ? (
                 /* ── Not connected ── */
                 <div className="space-y-2">
                   <p className="text-[12px] text-muted-foreground/60 text-center mb-1">Connect music</p>
-
                   <button
                     onClick={handleConnect}
                     disabled={loading}
@@ -73,9 +107,8 @@ export default function MusicWidget() {
                     )}
                   >
                     <SpotifyIcon />
-                    {loading ? 'Redirecting…' : 'Connect Spotify'}
+                    {loading ? 'Connecting…' : 'Connect Spotify'}
                   </button>
-
                   <a
                     href="https://music.apple.com"
                     target="_blank"
@@ -92,8 +125,100 @@ export default function MusicWidget() {
                     <ExternalLink className="w-3 h-3 opacity-40" />
                   </a>
                 </div>
+
+              ) : view === 'playlists' ? (
+                /* ── Playlist browser ── */
+                <>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setView('player')}
+                      className="text-muted-foreground/50 hover:text-foreground transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <p className="text-[12px] font-medium text-foreground">Your playlists</p>
+                  </div>
+
+                  {browseLoading ? (
+                    <p className="text-[12px] text-muted-foreground/50 text-center py-2">Loading…</p>
+                  ) : playlists.length === 0 ? (
+                    <p className="text-[12px] text-muted-foreground/50 text-center py-2">No playlists found</p>
+                  ) : (
+                    <div className="flex flex-col gap-1 max-h-56 overflow-y-auto no-scrollbar">
+                      {playlists.map((pl) => (
+                        <div key={pl.id} className="flex items-center gap-2.5 group">
+                          {pl.imageUrl ? (
+                            <img src={pl.imageUrl} alt="" className="w-8 h-8 rounded-md flex-shrink-0 object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-md bg-secondary flex-shrink-0 flex items-center justify-center">
+                              <ListMusic className="w-3.5 h-3.5 text-muted-foreground/40" />
+                            </div>
+                          )}
+                          <button
+                            onClick={() => handleSelectPlaylist(pl)}
+                            className="flex-1 text-left min-w-0"
+                          >
+                            <p className="text-[12px] font-medium text-foreground truncate group-hover:text-[#1DB954] transition-colors">
+                              {pl.name}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground/50">{pl.trackCount} tracks</p>
+                          </button>
+                          <button
+                            onClick={() => handlePlayPlaylist(pl)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 w-6 h-6 rounded-full bg-[#1DB954] flex items-center justify-center"
+                          >
+                            <Play className="w-3 h-3 fill-white text-white ml-0.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+
+              ) : view === 'tracks' ? (
+                /* ── Track list ── */
+                <>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setView('playlists')}
+                      className="text-muted-foreground/50 hover:text-foreground transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <p className="text-[12px] font-medium text-foreground truncate">{selectedPlaylist?.name}</p>
+                  </div>
+
+                  {browseLoading ? (
+                    <p className="text-[12px] text-muted-foreground/50 text-center py-2">Loading…</p>
+                  ) : tracks.length === 0 ? (
+                    <p className="text-[12px] text-muted-foreground/50 text-center py-2">No tracks</p>
+                  ) : (
+                    <div className="flex flex-col gap-1 max-h-56 overflow-y-auto no-scrollbar">
+                      {tracks.map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => handlePlayTrack(t.uri)}
+                          className="flex items-center gap-2.5 group text-left hover:bg-secondary/50 rounded-lg px-1 py-1 transition-colors"
+                        >
+                          {t.albumArt ? (
+                            <img src={t.albumArt} alt="" className="w-8 h-8 rounded-md flex-shrink-0 object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-md bg-secondary flex-shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12px] font-medium text-foreground truncate group-hover:text-[#1DB954] transition-colors">
+                              {t.name}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground/50 truncate">{t.artists}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+
               ) : (
-                /* ── Connected ── */
+                /* ── Player ── */
                 <>
                   {!ready && !track ? (
                     <p className="text-[12px] text-muted-foreground/50 text-center">Connecting player…</p>
@@ -112,16 +237,22 @@ export default function MusicWidget() {
                       </div>
                     </div>
                   ) : (
-                    <p className="text-[12px] text-muted-foreground/50 text-center">Nothing playing</p>
+                    <button
+                      onClick={handleBrowse}
+                      className="text-[12px] text-muted-foreground/50 hover:text-[#1DB954] transition-colors text-center flex items-center justify-center gap-1.5"
+                    >
+                      <ListMusic className="w-3.5 h-3.5" />
+                      Browse playlists
+                    </button>
                   )}
 
                   {/* Controls */}
                   <div className="flex items-center justify-center gap-4">
-                    <button onClick={handlePrev} className="text-muted-foreground/50 hover:text-foreground transition-colors">
+                    <button onClick={() => prev()} className="text-muted-foreground/50 hover:text-foreground transition-colors">
                       <SkipBack className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={handlePlayPause}
+                      onClick={() => toggle()}
                       className={cn(
                         'w-9 h-9 rounded-full flex items-center justify-center',
                         'bg-[#1DB954] text-white hover:bg-[#1DB954]/90 transition-colors'
@@ -132,12 +263,12 @@ export default function MusicWidget() {
                         : <Play className="w-4 h-4 fill-white ml-0.5" />
                       }
                     </button>
-                    <button onClick={handleNext} className="text-muted-foreground/50 hover:text-foreground transition-colors">
+                    <button onClick={() => next()} className="text-muted-foreground/50 hover:text-foreground transition-colors">
                       <SkipForward className="w-4 h-4" />
                     </button>
                   </div>
 
-                  {/* Track progress bar */}
+                  {/* Progress bar */}
                   {track && track.durationMs > 0 && (
                     <div className="h-0.5 rounded-full bg-border overflow-hidden">
                       <div
@@ -147,15 +278,25 @@ export default function MusicWidget() {
                     </div>
                   )}
 
-                  <button
-                    onClick={handleDisconnect}
-                    className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
-                  >
-                    <Unlink className="w-3 h-3" />
-                    Disconnect
-                  </button>
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={handleBrowse}
+                      className="flex items-center gap-1 text-[11px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
+                    >
+                      <ListMusic className="w-3 h-3" />
+                      Browse
+                    </button>
+                    <button
+                      onClick={handleDisconnect}
+                      className="flex items-center gap-1.5 text-[11px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
+                    >
+                      <Unlink className="w-3 h-3" />
+                      Disconnect
+                    </button>
+                  </div>
                 </>
               )}
+
             </div>
           </motion.div>
         )}

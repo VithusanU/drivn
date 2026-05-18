@@ -4,6 +4,8 @@ const SCOPES = [
   'user-modify-playback-state',
   'user-read-currently-playing',
   'streaming',
+  'playlist-read-private',
+  'playlist-read-collaborative',
 ].join(' ')
 
 function getRedirectUri() {
@@ -32,9 +34,11 @@ async function generateChallenge(verifier: string): Promise<string> {
 // ── Auth flow ────────────────────────────────────────────────────────────────
 
 export async function startSpotifyAuth() {
+  // Open popup immediately (before any await) so browsers don't block it
+  const popup = window.open('about:blank', 'spotify-auth', 'width=500,height=700,left=400,top=100')
+
   const verifier = base64url(randomBytes(32))
   const challenge = await generateChallenge(verifier)
-
   sessionStorage.setItem('spotify_verifier', verifier)
 
   const params = new URLSearchParams({
@@ -47,25 +51,31 @@ export async function startSpotifyAuth() {
   })
 
   const url = `https://accounts.spotify.com/authorize?${params}`
-  const popup = window.open(url, 'spotify-auth', 'width=500,height=700,left=400,top=100')
+
+  if (popup) {
+    popup.location.href = url
+  } else {
+    // Popup was blocked — fall back to redirect
+    window.location.href = url
+    return new Promise<boolean>(() => {})
+  }
 
   return new Promise<boolean>((resolve) => {
     const onMessage = (event: MessageEvent) => {
       if (event.data?.type === 'spotify-auth-success') {
         window.removeEventListener('message', onMessage)
-        popup?.close()
+        popup.close()
         resolve(true)
       } else if (event.data?.type === 'spotify-auth-error') {
         window.removeEventListener('message', onMessage)
-        popup?.close()
+        popup.close()
         resolve(false)
       }
     }
     window.addEventListener('message', onMessage)
 
-    // Fallback: if popup is closed manually
     const timer = setInterval(() => {
-      if (popup?.closed) {
+      if (popup.closed) {
         clearInterval(timer)
         window.removeEventListener('message', onMessage)
         resolve(false)
@@ -141,7 +151,7 @@ export function disconnectSpotify() {
   localStorage.removeItem('spotify_expires_at')
 }
 
-// ── API calls ────────────────────────────────────────────────────────────────
+// ── API helpers ──────────────────────────────────────────────────────────────
 
 async function spotifyFetch(path: string, options?: RequestInit) {
   const token = await getSpotifyToken()
@@ -151,6 +161,8 @@ async function spotifyFetch(path: string, options?: RequestInit) {
     headers: { Authorization: `Bearer ${token}`, ...options?.headers },
   })
 }
+
+// ── Playback ─────────────────────────────────────────────────────────────────
 
 export interface SpotifyTrack {
   name: string
@@ -199,4 +211,76 @@ export async function transferPlayback(deviceId: string, play = false) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ device_ids: [deviceId], play }),
   })
+}
+
+export async function playContext(contextUri: string, offsetUri?: string) {
+  await spotifyFetch('/me/player/play', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(
+      offsetUri
+        ? { context_uri: contextUri, offset: { uri: offsetUri } }
+        : { context_uri: contextUri }
+    ),
+  })
+}
+
+// ── Playlists ─────────────────────────────────────────────────────────────────
+
+export interface SpotifyPlaylist {
+  id: string
+  name: string
+  imageUrl: string
+  trackCount: number
+  uri: string
+}
+
+export interface SpotifyPlaylistTrack {
+  id: string
+  name: string
+  artists: string
+  albumArt: string
+  uri: string
+  durationMs: number
+}
+
+export async function getUserPlaylists(): Promise<SpotifyPlaylist[]> {
+  const res = await spotifyFetch('/me/playlists?limit=20')
+  if (!res?.ok) return []
+  const data = await res.json()
+  return (data.items ?? []).map((p: {
+    id: string; name: string; uri: string;
+    images: { url: string }[];
+    tracks: { total: number };
+  }) => ({
+    id: p.id,
+    name: p.name,
+    imageUrl: p.images?.[0]?.url ?? '',
+    trackCount: p.tracks.total,
+    uri: p.uri,
+  }))
+}
+
+export async function getPlaylistTracks(playlistId: string): Promise<SpotifyPlaylistTrack[]> {
+  const res = await spotifyFetch(
+    `/playlists/${playlistId}/tracks?limit=50&fields=items(track(id,name,uri,duration_ms,artists,album(images)))`
+  )
+  if (!res?.ok) return []
+  const data = await res.json()
+  return (data.items ?? [])
+    .filter((i: { track: SpotifyPlaylistTrack | null }) => i.track)
+    .map((i: {
+      track: {
+        id: string; name: string; uri: string; duration_ms: number;
+        artists: { name: string }[];
+        album: { images: { url: string }[] };
+      }
+    }) => ({
+      id: i.track.id,
+      name: i.track.name,
+      artists: i.track.artists.map((a) => a.name).join(', '),
+      albumArt: i.track.album.images?.[0]?.url ?? '',
+      uri: i.track.uri,
+      durationMs: i.track.duration_ms,
+    }))
 }
