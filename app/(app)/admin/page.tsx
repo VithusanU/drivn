@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { CheckCircle, Clock, XCircle, Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? ''
+const ADMIN_EMAIL = 'vithusan.business@gmail.com'
 
 interface SpotifyRequest {
   id: string

@@ -3,18 +3,26 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Heart, User } from 'lucide-react'
+import { Home, Heart, User, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ThemeToggle from './ThemeToggle'
+import { useUserStore } from '@/stores/userStore'
 
-const NAV_ITEMS = [
+const BASE_NAV = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/habits', label: 'Habits', icon: Heart },
   { href: '/profile', label: 'Profile', icon: User },
 ]
 
+const ADMIN_EMAIL = 'vithusan.business@gmail.com'
+
 export default function SideNav() {
   const pathname = usePathname()
+  const profile = useUserStore((s) => s.profile)
+
+  const navItems = profile?.email === ADMIN_EMAIL
+    ? [...BASE_NAV, { href: '/admin', label: 'Admin', icon: ShieldCheck }]
+    : BASE_NAV
 
   return (
     <aside className={cn(
@@ -37,7 +45,7 @@ export default function SideNav() {
 
       {/* Nav items */}
       <nav className="flex-1 space-y-1">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {navItems.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href
           return (
             <Link
