@@ -43,17 +43,21 @@ export default function MusicWidget() {
   }, [])
 
   const checkRequestStatus = async () => {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setRequestStatus('none'); return }
+    try {
+      const supabase = createClient()
+      const { data: authData } = await supabase.auth.getUser()
+      if (!authData?.user) { setRequestStatus('none'); return }
 
-    const { data } = await supabase
-      .from('spotify_requests')
-      .select('status')
-      .eq('user_id', user.id)
-      .single()
+      const { data } = await supabase
+        .from('spotify_requests')
+        .select('status')
+        .eq('user_id', authData.user.id)
+        .maybeSingle()
 
-    setRequestStatus((data?.status as RequestStatus) ?? 'none')
+      setRequestStatus((data?.status as RequestStatus) ?? 'none')
+    } catch {
+      setRequestStatus('none')
+    }
   }
 
   const handleSubmitRequest = async (e: React.FormEvent) => {
@@ -63,14 +67,15 @@ export default function MusicWidget() {
     setSubmitError('')
 
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSubmitting(false); return }
+    const { data: authData } = await supabase.auth.getUser()
+    if (!authData?.user) { setSubmitting(false); return }
+    const user = authData.user
 
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('full_name, email')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
     const { error } = await supabase.from('spotify_requests').upsert({
       user_id: user.id,
