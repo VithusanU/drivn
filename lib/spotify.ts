@@ -41,7 +41,7 @@ export async function startSpotifyAuth() {
 
   const verifier = base64url(randomBytes(32))
   const challenge = await generateChallenge(verifier)
-  sessionStorage.setItem('spotify_verifier', verifier)
+  localStorage.setItem('spotify_verifier', verifier)
 
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
@@ -88,7 +88,7 @@ export async function startSpotifyAuth() {
 }
 
 export async function exchangeSpotifyCode(code: string): Promise<boolean> {
-  const verifier = sessionStorage.getItem('spotify_verifier')
+  const verifier = localStorage.getItem('spotify_verifier')
   if (!verifier) return false
 
   const res = await fetch('https://accounts.spotify.com/api/token', {
@@ -109,7 +109,7 @@ export async function exchangeSpotifyCode(code: string): Promise<boolean> {
   localStorage.setItem('spotify_access_token', data.access_token)
   localStorage.setItem('spotify_refresh_token', data.refresh_token)
   localStorage.setItem('spotify_expires_at', String(Date.now() + data.expires_in * 1000))
-  sessionStorage.removeItem('spotify_verifier')
+  localStorage.removeItem('spotify_verifier')
   return true
 }
 
