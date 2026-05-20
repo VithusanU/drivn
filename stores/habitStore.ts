@@ -56,10 +56,26 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
     )
 
     if (existingCompletion) {
-      await supabase.from('habit_completions').delete().eq('id', existingCompletion.id)
-      set((state) => ({
-        completions: state.completions.filter((c) => c.id !== existingCompletion.id),
-      }))
+      if (details) {
+        // Update the existing completion with new details (e.g. adding more water)
+        const { data, error } = await supabase
+          .from('habit_completions')
+          .update({ details })
+          .eq('id', existingCompletion.id)
+          .select()
+          .single()
+        if (!error && data) {
+          set((state) => ({
+            completions: state.completions.map((c) => c.id === existingCompletion.id ? data : c),
+          }))
+        }
+      } else {
+        // No details = user wants to unmark (simple habits)
+        await supabase.from('habit_completions').delete().eq('id', existingCompletion.id)
+        set((state) => ({
+          completions: state.completions.filter((c) => c.id !== existingCompletion.id),
+        }))
+      }
     } else {
       const { data, error } = await supabase
         .from('habit_completions')

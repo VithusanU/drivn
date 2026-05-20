@@ -32,12 +32,15 @@ interface HabitDetailSheetProps {
 export default function HabitDetailSheet({ habit, onConfirm, onClose }: HabitDetailSheetProps) {
   const unit = habit.detail_config?.unit ?? 'ml'
   const maxAmount = habit.detail_config?.target ?? habit.detail_config?.max ?? (unit === 'glasses' ? 8 : unit === 'oz' ? 64 : 2000)
+  const isEditing = habit.completedToday
 
-  const [selectedSections, setSelectedSections] = useState<string[]>([])
-  const [amount, setAmount] = useState<number>(
-    AMOUNT_PRESETS[unit]?.[1] ?? 250
+  const [selectedSections, setSelectedSections] = useState<string[]>(
+    habit.lastDetails?.body_sections ?? []
   )
-  const [note, setNote] = useState('')
+  const [amount, setAmount] = useState<number>(
+    habit.lastDetails?.amount ?? AMOUNT_PRESETS[unit]?.[1] ?? 250
+  )
+  const [note, setNote] = useState(habit.lastDetails?.note ?? '')
 
   const toggleSection = (id: string) => {
     setSelectedSections((prev) =>
@@ -86,7 +89,7 @@ export default function HabitDetailSheet({ habit, onConfirm, onClose }: HabitDet
             <span className="text-2xl">{habit.emoji}</span>
             <div>
               <p className="text-[15px] font-medium text-foreground">{habit.title}</p>
-              <p className="text-[11px] text-muted-foreground">Log today's entry</p>
+              <p className="text-[11px] text-muted-foreground">{isEditing ? 'Update today\'s entry' : 'Log today\'s entry'}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
@@ -212,9 +215,9 @@ export default function HabitDetailSheet({ habit, onConfirm, onClose }: HabitDet
           )}
         >
           {habit.detail_type === 'body_sections' && selectedSections.length > 0
-            ? `Log ${selectedSections.length} muscle group${selectedSections.length > 1 ? 's' : ''}`
+            ? `${isEditing ? 'Update' : 'Log'} ${selectedSections.length} muscle group${selectedSections.length > 1 ? 's' : ''}`
             : habit.detail_type === 'amount'
-            ? `Log ${amount} ${unit}`
+            ? `${isEditing ? 'Update to' : 'Log'} ${amount} ${unit}`
             : 'Log habit'}
         </button>
       </motion.div>

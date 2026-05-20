@@ -152,12 +152,10 @@ export default function HabitStrip() {
   }
 
   const handleTap = (habit: HabitWithStreak) => {
-    if (habit.completedToday) {
-      toggleHabit(habit.id)
-    } else if (habit.detail_type === 'none') {
-      toggleHabit(habit.id)
-    } else {
+    if (habit.detail_type !== 'none') {
       setActiveSheet(habit)
+    } else {
+      toggleHabit(habit.id)
     }
   }
 

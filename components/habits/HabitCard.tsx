@@ -77,12 +77,11 @@ export default function HabitCard({ habit, disabled }: HabitCardProps) {
 
   const handleTap = () => {
     if (disabled) return
-    if (habit.completedToday) {
-      toggleHabit(habit.id)
-    } else if (habit.detail_type === 'none') {
-      toggleHabit(habit.id)
-    } else {
+    if (habit.detail_type !== 'none') {
+      // Always open the sheet for detail habits so existing logs can be updated
       setShowSheet(true)
+    } else {
+      toggleHabit(habit.id)
     }
   }
 
