@@ -124,7 +124,6 @@ export default function QuickCapture() {
       'md:bottom-6 md:left-[220px] md:right-0'
     )}>
       <div className="max-w-2xl mx-auto px-4">
-        <div className="max-w-md mx-auto">
       <AnimatePresence>
         {expanded && (
           <motion.div
@@ -346,7 +345,6 @@ export default function QuickCapture() {
           )}
         </AnimatePresence>
       </motion.div>
-      </div>
       </div>
     </div>
   )
