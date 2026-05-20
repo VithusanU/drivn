@@ -119,9 +119,9 @@ export default function QuickCapture() {
 
   return (
     <div className={cn(
-      'fixed z-20 pb-3 w-full',
+      'fixed z-20 pb-3',
       'bottom-[60px] left-0 right-0',
-      'md:bottom-6 md:left-[220px] md:right-0'
+      'md:bottom-6 md:left-[220px]'
     )}>
       <div className="max-w-2xl mx-auto px-4">
       <AnimatePresence>
