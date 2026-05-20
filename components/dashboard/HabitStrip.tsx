@@ -59,6 +59,9 @@ const STATE_LABEL: Record<HabitState, string> = {
 export default function HabitStrip() {
   const toggleHabit = useHabitStore((s) => s.toggleHabit)
   const getHabitsWithStreaks = useHabitStore((s) => s.getHabitsWithStreaks)
+  // Subscribe to raw data so this component re-renders when habits or completions change
+  useHabitStore((s) => s.habits)
+  useHabitStore((s) => s.completions)
   const [activeSheet, setActiveSheet] = useState<HabitWithStreak | null>(null)
 
   const habitsWithStreaks = getHabitsWithStreaks()

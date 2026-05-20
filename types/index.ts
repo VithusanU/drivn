@@ -150,6 +150,7 @@ export interface HabitStore {
   fetchTodayCompletions: () => Promise<void>
   toggleHabit: (habitId: string, details?: HabitCompletionDetails) => Promise<void>
   createHabit: (input: CreateHabitInput) => Promise<void>
+  deleteHabit: (id: string) => Promise<void>
   getHabitsWithStreaks: () => HabitWithStreak[]
 }
 

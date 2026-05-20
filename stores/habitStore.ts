@@ -68,6 +68,12 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
     }
   },
 
+  deleteHabit: async (id: string) => {
+    const supabase = createClient()
+    await supabase.from('habits').update({ active: false }).eq('id', id)
+    set((state) => ({ habits: state.habits.filter((h) => h.id !== id) }))
+  },
+
   createHabit: async (input: CreateHabitInput) => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, Pencil } from 'lucide-react'
 import { useHabitStore } from '@/stores/habitStore'
 import HabitCard from '@/components/habits/HabitCard'
 import { cn } from '@/lib/utils'
@@ -19,13 +19,18 @@ const DETAIL_TYPES: { value: HabitDetailType; label: string; description: string
 
 export default function HabitsPage() {
   const [showAdd, setShowAdd] = useState(false)
+  const [editMode, setEditMode] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newEmoji, setNewEmoji] = useState('✅')
   const [detailType, setDetailType] = useState<HabitDetailType>('none')
   const [unit, setUnit] = useState('ml')
   const [target, setTarget] = useState<number>(8)
   const createHabit = useHabitStore((s) => s.createHabit)
+  const deleteHabit = useHabitStore((s) => s.deleteHabit)
   const getHabitsWithStreaks = useHabitStore((s) => s.getHabitsWithStreaks)
+  // Subscribe to raw data so this component re-renders when habits or completions change
+  useHabitStore((s) => s.habits)
+  useHabitStore((s) => s.completions)
 
   const habits = getHabitsWithStreaks()
   const completedCount = habits.filter((h) => h.completedToday).length
@@ -65,12 +70,27 @@ export default function HabitsPage() {
             {format(new Date(), 'EEEE, MMM d')}
           </p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="p-2 rounded-xl bg-secondary border border-border text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
+        <div className="flex gap-2">
+          {habits.length > 0 && (
+            <button
+              onClick={() => setEditMode((v) => !v)}
+              className={cn(
+                'p-2 rounded-xl border transition-colors',
+                editMode
+                  ? 'bg-destructive/10 border-destructive/30 text-destructive'
+                  : 'bg-secondary border-border text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={() => setShowAdd(true)}
+            className="p-2 rounded-xl bg-secondary border border-border text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <p className="text-[13px] text-muted-foreground/60 mb-5">
@@ -86,7 +106,22 @@ export default function HabitsPage() {
       ) : (
         <div className="grid grid-cols-2 gap-2.5">
           {habits.map((habit) => (
-            <HabitCard key={habit.id} habit={habit} />
+            <div key={habit.id} className="relative">
+              <HabitCard habit={habit} disabled={editMode} />
+              <AnimatePresence>
+                {editMode && (
+                  <motion.button
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    onClick={() => deleteHabit(habit.id)}
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center shadow-md z-10"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </div>
           ))}
         </div>
       )}

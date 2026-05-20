@@ -9,6 +9,7 @@ import type { HabitWithStreak, HabitCompletionDetails } from '@/types'
 
 interface HabitCardProps {
   habit: HabitWithStreak
+  disabled?: boolean
 }
 
 type HabitState = 'completed' | 'in_progress' | 'not_done' | 'pending'
@@ -68,13 +69,14 @@ const SECTION_LABELS: Record<string, string> = {
 }
 const ALL_SECTIONS = ['chest', 'back', 'shoulders', 'arms', 'core', 'legs', 'glutes', 'cardio']
 
-export default function HabitCard({ habit }: HabitCardProps) {
+export default function HabitCard({ habit, disabled }: HabitCardProps) {
   const toggleHabit = useHabitStore((s) => s.toggleHabit)
   const [showSheet, setShowSheet] = useState(false)
 
   const state = getHabitState(habit)
 
   const handleTap = () => {
+    if (disabled) return
     if (habit.completedToday) {
       toggleHabit(habit.id)
     } else if (habit.detail_type === 'none') {
@@ -95,11 +97,12 @@ export default function HabitCard({ habit }: HabitCardProps) {
   return (
     <>
       <motion.button
-        whileTap={{ scale: 0.95 }}
+        whileTap={{ scale: disabled ? 1 : 0.95 }}
         onClick={handleTap}
         className={cn(
-          'flex flex-col p-4 rounded-2xl text-left border transition-all duration-150',
-          STATE_CARD[state]
+          'flex flex-col p-4 rounded-2xl text-left border transition-all duration-150 w-full',
+          STATE_CARD[state],
+          disabled && 'opacity-60 cursor-default'
         )}
       >
         <span className="text-2xl mb-2">{habit.emoji}</span>
