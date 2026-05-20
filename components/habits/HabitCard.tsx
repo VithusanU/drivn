@@ -124,12 +124,13 @@ export default function HabitCard({ habit, disabled }: HabitCardProps) {
         </p>
 
         {/* Last done label — only when not completed today */}
-        {!habit.completedToday && habit.lastCompletedDate && (
+        {!habit.completedToday && habit.lastCompletedDate ? (
           <p className="text-[10px] text-muted-foreground/35 mb-3">
             {getLastDoneLabel(habit.lastCompletedDate)}
           </p>
+        ) : (
+          <div className="mb-3" />
         )}
-        {(habit.completedToday || !habit.lastCompletedDate) && <div className="mb-3" />}
 
         {/* ── Amount progress bar ── */}
         {habit.detail_type === 'amount' && (

@@ -33,6 +33,7 @@ export default function HabitsPage() {
   // Subscribe to raw data so this component re-renders when habits or completions change
   useHabitStore((s) => s.habits)
   useHabitStore((s) => s.completions)
+  useHabitStore((s) => s.lastCompletions)
 
   const habits = getHabitsWithStreaks()
   const completedCount = habits.filter((h) => h.completedToday).length
@@ -214,41 +215,6 @@ export default function HabitsPage() {
                   'focus:border-primary/50 transition-colors'
                 )}
               />
-
-              {/* Priority */}
-              <p className="text-[10px] font-medium tracking-[0.1em] uppercase text-muted-foreground/60 mb-2">
-                Priority
-              </p>
-              <div className="flex gap-2 mb-5">
-                <button
-                  onClick={() => setPriority('essential')}
-                  className={cn(
-                    'flex-1 flex flex-col items-start px-4 py-3 rounded-xl border text-left transition-all',
-                    priority === 'essential'
-                      ? 'bg-amber-400/10 border-amber-400/40'
-                      : 'bg-background border-border hover:border-border/80'
-                  )}
-                >
-                  <span className={cn('text-[13px] font-medium', priority === 'essential' ? 'text-amber-400' : 'text-foreground')}>
-                    ⭐ Essential
-                  </span>
-                  <span className="text-[11px] text-muted-foreground/60 mt-0.5">Must do every day</span>
-                </button>
-                <button
-                  onClick={() => setPriority('nice_to_have')}
-                  className={cn(
-                    'flex-1 flex flex-col items-start px-4 py-3 rounded-xl border text-left transition-all',
-                    priority === 'nice_to_have'
-                      ? 'bg-primary/10 border-primary/40'
-                      : 'bg-background border-border hover:border-border/80'
-                  )}
-                >
-                  <span className={cn('text-[13px] font-medium', priority === 'nice_to_have' ? 'text-primary' : 'text-foreground')}>
-                    Nice to have
-                  </span>
-                  <span className="text-[11px] text-muted-foreground/60 mt-0.5">Good if you can do it</span>
-                </button>
-              </div>
 
               {/* Detail type */}
               <p className="text-[10px] font-medium tracking-[0.1em] uppercase text-muted-foreground/60 mb-2">
