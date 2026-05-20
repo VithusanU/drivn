@@ -46,11 +46,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/', request.url))
   }
 
-  // New user: redirect to onboarding if not yet onboarded
-  if (user && pathname === '/' && request.nextUrl.searchParams.get('onboarding') === 'true') {
-    return NextResponse.redirect(new URL('/onboarding', request.url))
-  }
-
   return response
 }
 

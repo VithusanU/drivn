@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { format, isToday, isTomorrow, isPast, parseISO, formatDistanceToNow } from 'date-fns'
+import { format, isToday, isTomorrow, isPast, parseISO } from 'date-fns'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -15,27 +15,12 @@ export function formatDueDate(dueDateStr: string | null): string {
   return `Due ${format(date, 'MMM d')}`
 }
 
-export function formatDueDateRelative(dueDateStr: string | null): string {
-  if (!dueDateStr) return 'No deadline'
-  const date = parseISO(dueDateStr)
-  if (isPast(date) && !isToday(date)) {
-    return `${formatDistanceToNow(date)} overdue`
-  }
-  return formatDistanceToNow(date, { addSuffix: true })
-}
-
 export function getGreeting(name: string | null): string {
   const hour = new Date().getHours()
   const firstName = name?.split(' ')[0] ?? 'there'
   if (hour < 12) return `Good morning, ${firstName}.`
   if (hour < 17) return `Good afternoon, ${firstName}.`
   return `Good evening, ${firstName}.`
-}
-
-export function formatStreakLabel(streak: number): string {
-  if (streak === 0) return 'Start your streak'
-  if (streak === 1) return '1 day streak'
-  return `${streak} day streak`
 }
 
 export function getMomentumMessage(streak: number, tasksToday: number): string {

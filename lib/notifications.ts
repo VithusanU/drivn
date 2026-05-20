@@ -7,7 +7,7 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   return Uint8Array.from(Array.from(rawData).map((c) => c.charCodeAt(0))).buffer as ArrayBuffer
 }
 
-export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!('serviceWorker' in navigator)) return null
   try {
     return await navigator.serviceWorker.register('/sw.js')
@@ -16,7 +16,7 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   }
 }
 
-export async function getNotificationPermission(): Promise<NotificationPermission> {
+async function getNotificationPermission(): Promise<NotificationPermission> {
   if (!('Notification' in window)) return 'denied'
   if (Notification.permission === 'default') {
     return Notification.requestPermission()
