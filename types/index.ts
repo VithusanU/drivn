@@ -57,8 +57,9 @@ export interface TaskWithGroup extends Task {
 export type HabitDetailType = 'none' | 'body_sections' | 'amount'
 
 export interface HabitDetailConfig {
-  unit?: string  // for amount type e.g. 'ml', 'oz', 'glasses'
-  max?: number   // for amount type
+  unit?: string
+  max?: number
+  target?: number
 }
 
 export interface Habit {
