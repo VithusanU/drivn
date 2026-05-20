@@ -56,44 +56,17 @@ const STATE_LABEL: Record<HabitState, string> = {
   pending:     'text-muted-foreground',
 }
 
-export default function HabitStrip() {
-  const toggleHabit = useHabitStore((s) => s.toggleHabit)
-  const getHabitsWithStreaks = useHabitStore((s) => s.getHabitsWithStreaks)
-  // Subscribe to raw data so this component re-renders when habits or completions change
-  useHabitStore((s) => s.habits)
-  useHabitStore((s) => s.completions)
-  const [activeSheet, setActiveSheet] = useState<HabitWithStreak | null>(null)
+interface HabitRowProps {
+  habits: HabitWithStreak[]
+  onTap: (habit: HabitWithStreak) => void
+}
 
-  const habitsWithStreaks = getHabitsWithStreaks()
-
-  if (habitsWithStreaks.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No habits yet. Add some in the Habits tab.
-      </p>
-    )
-  }
-
-  const handleTap = (habit: HabitWithStreak) => {
-    if (habit.completedToday) {
-      toggleHabit(habit.id)
-    } else if (habit.detail_type === 'none') {
-      toggleHabit(habit.id)
-    } else {
-      setActiveSheet(habit)
-    }
-  }
-
-  const handleConfirm = async (details: HabitCompletionDetails) => {
-    if (!activeSheet) return
-    setActiveSheet(null)
-    await toggleHabit(activeSheet.id, details)
-  }
-
+function HabitRow({ habits, onTap }: HabitRowProps) {
   return (
-    <>
-      <div className="flex gap-2.5 overflow-x-auto no-scrollbar scroll-momentum pb-1">
-        {habitsWithStreaks.map((habit) => {
+    // Negative margin breaks out of the parent px-4 so the scroll goes edge-to-edge
+    <div className="relative -mx-4">
+      <div className="flex gap-2.5 overflow-x-auto no-scrollbar scroll-momentum px-4 pb-1">
+        {habits.map((habit) => {
           const state = getHabitState(habit)
           const progress = habit.detail_type === 'amount' ? getAmountProgress(habit) : null
           const loggedSections = habit.lastDetails?.body_sections?.length ?? 0
@@ -102,13 +75,18 @@ export default function HabitStrip() {
             <motion.button
               key={habit.id}
               whileTap={{ scale: 0.93 }}
-              onClick={() => handleTap(habit)}
+              onClick={() => onTap(habit)}
               className={cn(
                 'relative flex flex-col items-center gap-1.5 px-4 pt-3 pb-2 rounded-2xl',
                 'flex-shrink-0 min-w-[72px] border transition-all duration-150 overflow-hidden',
                 STATE_CARD[state]
               )}
             >
+              {/* Essential star badge */}
+              {habit.priority === 'essential' && (
+                <span className="absolute top-1 right-1.5 text-[9px] leading-none">⭐</span>
+              )}
+
               <span className="text-xl">{habit.emoji}</span>
 
               <span className={cn('text-[11px] font-medium whitespace-nowrap', STATE_LABEL[state])}>
@@ -146,6 +124,71 @@ export default function HabitStrip() {
             </motion.button>
           )
         })}
+      </div>
+      {/* Right fade to hint at more content */}
+      <div className="pointer-events-none absolute right-0 top-0 bottom-1 w-8 bg-gradient-to-l from-background to-transparent" />
+    </div>
+  )
+}
+
+export default function HabitStrip() {
+  const toggleHabit = useHabitStore((s) => s.toggleHabit)
+  const getHabitsWithStreaks = useHabitStore((s) => s.getHabitsWithStreaks)
+  // Subscribe to raw data so this component re-renders when habits or completions change
+  useHabitStore((s) => s.habits)
+  useHabitStore((s) => s.completions)
+  const [activeSheet, setActiveSheet] = useState<HabitWithStreak | null>(null)
+
+  const all = getHabitsWithStreaks()
+  const essential = all.filter((h) => h.priority === 'essential')
+  const niceToHave = all.filter((h) => h.priority !== 'essential')
+
+  if (all.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No habits yet. Add some in the Habits tab.
+      </p>
+    )
+  }
+
+  const handleTap = (habit: HabitWithStreak) => {
+    if (habit.completedToday) {
+      toggleHabit(habit.id)
+    } else if (habit.detail_type === 'none') {
+      toggleHabit(habit.id)
+    } else {
+      setActiveSheet(habit)
+    }
+  }
+
+  const handleConfirm = async (details: HabitCompletionDetails) => {
+    if (!activeSheet) return
+    setActiveSheet(null)
+    await toggleHabit(activeSheet.id, details)
+  }
+
+  return (
+    <>
+      <div className="space-y-3">
+        {essential.length > 0 && (
+          <div>
+            <p className="text-[10px] font-medium tracking-[0.1em] uppercase text-amber-400/80 mb-2">
+              ⭐ Must do
+            </p>
+            <HabitRow habits={essential} onTap={handleTap} />
+          </div>
+        )}
+
+        {niceToHave.length > 0 && (
+          <div>
+            {essential.length > 0 && (
+              <p className="text-[10px] font-medium tracking-[0.1em] uppercase text-muted-foreground/50 mb-2">
+                Nice to have
+              </p>
+            )}
+            <HabitRow habits={niceToHave} onTap={handleTap} />
+          </div>
+        )}
       </div>
 
       <AnimatePresence>

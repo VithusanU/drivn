@@ -55,6 +55,7 @@ export interface TaskWithGroup extends Task {
 // ─── Habits ────────────────────────────────────────────────────────────────
 
 export type HabitDetailType = 'none' | 'body_sections' | 'amount'
+export type HabitPriority = 'essential' | 'nice_to_have'
 
 export interface HabitDetailConfig {
   unit?: string
@@ -72,6 +73,7 @@ export interface Habit {
   order_index: number
   detail_type: HabitDetailType
   detail_config: HabitDetailConfig | null
+  priority: HabitPriority
 }
 
 export interface HabitCompletionDetails {
@@ -99,6 +101,7 @@ export interface CreateHabitInput {
   emoji: string
   detail_type?: HabitDetailType
   detail_config?: HabitDetailConfig
+  priority?: HabitPriority
 }
 
 // ─── Streaks ───────────────────────────────────────────────────────────────
@@ -151,6 +154,7 @@ export interface HabitStore {
   toggleHabit: (habitId: string, details?: HabitCompletionDetails) => Promise<void>
   createHabit: (input: CreateHabitInput) => Promise<void>
   deleteHabit: (id: string) => Promise<void>
+  updateHabitPriority: (id: string, priority: HabitPriority) => Promise<void>
   getHabitsWithStreaks: () => HabitWithStreak[]
 }
 

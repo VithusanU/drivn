@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { createClient } from '@/lib/supabase/client'
 import { getTodayISO } from '@/lib/utils'
-import type { Habit, HabitCompletion, HabitStore, HabitWithStreak, CreateHabitInput, HabitCompletionDetails } from '@/types'
+import type { Habit, HabitCompletion, HabitStore, HabitWithStreak, CreateHabitInput, HabitCompletionDetails, HabitPriority } from '@/types'
 
 export const useHabitStore = create<HabitStore>((set, get) => ({
   habits: [],
@@ -21,7 +21,12 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
         .order('order_index')
 
       if (error) throw error
-      set({ habits: data ?? [], isLoading: false })
+      // Sort: essentials first, then by order_index
+      const sorted = (data ?? []).sort((a, b) => {
+        if (a.priority === b.priority) return a.order_index - b.order_index
+        return a.priority === 'essential' ? -1 : 1
+      })
+      set({ habits: sorted, isLoading: false })
     } catch {
       set({ isLoading: false })
     }
@@ -74,6 +79,19 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
     set((state) => ({ habits: state.habits.filter((h) => h.id !== id) }))
   },
 
+  updateHabitPriority: async (id: string, priority: HabitPriority) => {
+    const supabase = createClient()
+    await supabase.from('habits').update({ priority }).eq('id', id)
+    set((state) => ({
+      habits: state.habits
+        .map((h) => h.id === id ? { ...h, priority } : h)
+        .sort((a, b) => {
+          if (a.priority === b.priority) return a.order_index - b.order_index
+          return a.priority === 'essential' ? -1 : 1
+        }),
+    }))
+  },
+
   createHabit: async (input: CreateHabitInput) => {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -89,6 +107,7 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
         order_index: habits.length,
         detail_type: input.detail_type ?? 'none',
         detail_config: input.detail_config ?? null,
+        priority: input.priority ?? 'nice_to_have',
       })
       .select()
       .single()

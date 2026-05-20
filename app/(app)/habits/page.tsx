@@ -7,7 +7,7 @@ import { useHabitStore } from '@/stores/habitStore'
 import HabitCard from '@/components/habits/HabitCard'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
-import type { HabitDetailType } from '@/types'
+import type { HabitDetailType, HabitPriority } from '@/types'
 
 const EMOJI_OPTIONS = ['🏋️', '💧', '📖', '🧘', '✍️', '🥗', '😴', '🚶', '🎨', '💊', '🏃', '🧹', '☕', '🎵', '🌿', '🧘', '🏊', '🚴', '🥤', '🫁']
 
@@ -23,10 +23,12 @@ export default function HabitsPage() {
   const [newTitle, setNewTitle] = useState('')
   const [newEmoji, setNewEmoji] = useState('✅')
   const [detailType, setDetailType] = useState<HabitDetailType>('none')
+  const [priority, setPriority] = useState<HabitPriority>('nice_to_have')
   const [unit, setUnit] = useState('ml')
   const [target, setTarget] = useState<number>(8)
   const createHabit = useHabitStore((s) => s.createHabit)
   const deleteHabit = useHabitStore((s) => s.deleteHabit)
+  const updateHabitPriority = useHabitStore((s) => s.updateHabitPriority)
   const getHabitsWithStreaks = useHabitStore((s) => s.getHabitsWithStreaks)
   // Subscribe to raw data so this component re-renders when habits or completions change
   useHabitStore((s) => s.habits)
@@ -42,10 +44,12 @@ export default function HabitsPage() {
       emoji: newEmoji,
       detail_type: detailType,
       detail_config: detailType === 'amount' ? { unit, target } : undefined,
+      priority,
     })
     setNewTitle('')
     setNewEmoji('✅')
     setDetailType('none')
+    setPriority('nice_to_have')
     setUnit('ml')
     setTarget(8)
     setShowAdd(false)
@@ -56,6 +60,7 @@ export default function HabitsPage() {
     setNewTitle('')
     setNewEmoji('✅')
     setDetailType('none')
+    setPriority('nice_to_have')
     setUnit('ml')
     setTarget(8)
   }
@@ -110,15 +115,34 @@ export default function HabitsPage() {
               <HabitCard habit={habit} disabled={editMode} />
               <AnimatePresence>
                 {editMode && (
-                  <motion.button
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    exit={{ scale: 0 }}
-                    onClick={() => deleteHabit(habit.id)}
-                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center shadow-md z-10"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </motion.button>
+                  <>
+                    <motion.button
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                      onClick={() => deleteHabit(habit.id)}
+                      className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center shadow-md z-10"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </motion.button>
+                    <motion.button
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                      onClick={() => updateHabitPriority(
+                        habit.id,
+                        habit.priority === 'essential' ? 'nice_to_have' : 'essential'
+                      )}
+                      className={cn(
+                        'absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center shadow-md z-10 text-[12px]',
+                        habit.priority === 'essential'
+                          ? 'bg-amber-400 text-white'
+                          : 'bg-secondary border border-border text-muted-foreground'
+                      )}
+                    >
+                      ⭐
+                    </motion.button>
+                  </>
                 )}
               </AnimatePresence>
             </div>
@@ -190,6 +214,41 @@ export default function HabitsPage() {
                   'focus:border-primary/50 transition-colors'
                 )}
               />
+
+              {/* Priority */}
+              <p className="text-[10px] font-medium tracking-[0.1em] uppercase text-muted-foreground/60 mb-2">
+                Priority
+              </p>
+              <div className="flex gap-2 mb-5">
+                <button
+                  onClick={() => setPriority('essential')}
+                  className={cn(
+                    'flex-1 flex flex-col items-start px-4 py-3 rounded-xl border text-left transition-all',
+                    priority === 'essential'
+                      ? 'bg-amber-400/10 border-amber-400/40'
+                      : 'bg-background border-border hover:border-border/80'
+                  )}
+                >
+                  <span className={cn('text-[13px] font-medium', priority === 'essential' ? 'text-amber-400' : 'text-foreground')}>
+                    ⭐ Essential
+                  </span>
+                  <span className="text-[11px] text-muted-foreground/60 mt-0.5">Must do every day</span>
+                </button>
+                <button
+                  onClick={() => setPriority('nice_to_have')}
+                  className={cn(
+                    'flex-1 flex flex-col items-start px-4 py-3 rounded-xl border text-left transition-all',
+                    priority === 'nice_to_have'
+                      ? 'bg-primary/10 border-primary/40'
+                      : 'bg-background border-border hover:border-border/80'
+                  )}
+                >
+                  <span className={cn('text-[13px] font-medium', priority === 'nice_to_have' ? 'text-primary' : 'text-foreground')}>
+                    Nice to have
+                  </span>
+                  <span className="text-[11px] text-muted-foreground/60 mt-0.5">Good if you can do it</span>
+                </button>
+              </div>
 
               {/* Detail type */}
               <p className="text-[10px] font-medium tracking-[0.1em] uppercase text-muted-foreground/60 mb-2">
