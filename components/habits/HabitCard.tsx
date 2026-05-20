@@ -11,25 +11,71 @@ interface HabitCardProps {
   habit: HabitWithStreak
 }
 
-function formatDetails(habit: HabitWithStreak): string | null {
-  const d = habit.lastDetails
-  if (!d) return null
-  if (habit.detail_type === 'body_sections' && d.body_sections?.length) {
-    return d.body_sections.map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')
+type HabitState = 'completed' | 'in_progress' | 'not_done' | 'pending'
+
+function getHabitState(habit: HabitWithStreak): HabitState {
+  const isEOD = new Date().getHours() >= 21
+
+  if (habit.completedToday) {
+    if (habit.detail_type === 'amount') {
+      const logged = habit.lastDetails?.amount ?? 0
+      const target = habit.detail_config?.target ?? 1
+      return logged >= target ? 'completed' : 'in_progress'
+    }
+    return 'completed'
   }
-  if (habit.detail_type === 'amount' && d.amount != null) {
-    return `${d.amount} ${d.unit ?? ''}`
-  }
-  return null
+
+  return isEOD ? 'not_done' : 'pending'
 }
+
+function getAmountProgress(habit: HabitWithStreak): number {
+  const logged = habit.lastDetails?.amount ?? 0
+  const target = habit.detail_config?.target ?? 1
+  return Math.min(logged / target, 1)
+}
+
+const STATE_CARD: Record<HabitState, string> = {
+  completed: 'bg-drivn-green/10 border-drivn-green/30',
+  in_progress: 'bg-amber-400/10 border-amber-400/30',
+  not_done: 'bg-destructive/8 border-destructive/25',
+  pending: 'bg-card/50 border-border/50 hover:bg-card hover:border-border',
+}
+
+const STATE_TITLE: Record<HabitState, string> = {
+  completed: 'text-drivn-green',
+  in_progress: 'text-amber-400',
+  not_done: 'text-destructive/70',
+  pending: 'text-foreground/75',
+}
+
+const STATE_LABEL: Record<HabitState, string> = {
+  completed: 'Done ✓',
+  in_progress: 'In progress',
+  not_done: 'Not done',
+  pending: 'Tap to log',
+}
+
+const STATE_BAR: Record<HabitState, string> = {
+  completed: 'bg-drivn-green',
+  in_progress: 'bg-amber-400',
+  not_done: 'bg-destructive/50',
+  pending: 'bg-muted-foreground/20',
+}
+
+const SECTION_LABELS: Record<string, string> = {
+  chest: 'Ch', back: 'Ba', shoulders: 'Sh', arms: 'Ar',
+  core: 'Co', legs: 'Le', glutes: 'Gl', cardio: 'Ca',
+}
+const ALL_SECTIONS = ['chest', 'back', 'shoulders', 'arms', 'core', 'legs', 'glutes', 'cardio']
 
 export default function HabitCard({ habit }: HabitCardProps) {
   const toggleHabit = useHabitStore((s) => s.toggleHabit)
   const [showSheet, setShowSheet] = useState(false)
 
+  const state = getHabitState(habit)
+
   const handleTap = () => {
     if (habit.completedToday) {
-      // Undo — no detail needed
       toggleHabit(habit.id)
     } else if (habit.detail_type === 'none') {
       toggleHabit(habit.id)
@@ -43,7 +89,8 @@ export default function HabitCard({ habit }: HabitCardProps) {
     await toggleHabit(habit.id, details)
   }
 
-  const detailSummary = formatDetails(habit)
+  const amountProgress = habit.detail_type === 'amount' ? getAmountProgress(habit) : null
+  const loggedSections: string[] = habit.lastDetails?.body_sections ?? []
 
   return (
     <>
@@ -52,47 +99,72 @@ export default function HabitCard({ habit }: HabitCardProps) {
         onClick={handleTap}
         className={cn(
           'flex flex-col p-4 rounded-2xl text-left border transition-all duration-150',
-          habit.completedToday
-            ? 'bg-drivn-green/10 border-drivn-green/30'
-            : 'bg-card/50 border-border/50 hover:bg-card hover:border-border'
+          STATE_CARD[state]
         )}
       >
         <span className="text-2xl mb-2">{habit.emoji}</span>
-        <p className={cn(
-          'text-[15px] font-medium mb-1',
-          habit.completedToday ? 'text-drivn-green' : 'text-foreground/75'
-        )}>
+
+        <p className={cn('text-[15px] font-medium mb-1', STATE_TITLE[state])}>
           {habit.title}
         </p>
 
-        {/* Detail summary or streak */}
-        {habit.completedToday && detailSummary ? (
-          <p className="text-[11px] text-drivn-green/60 mb-1 truncate">{detailSummary}</p>
-        ) : (
-          <p className={cn(
-            'text-[11px]',
-            habit.completedToday ? 'text-drivn-green/55' : 'text-muted-foreground/40'
-          )}>
-            {habit.currentStreak > 0 ? `${habit.currentStreak} day streak` : 'No streak yet'}
-          </p>
+        {/* Streak or logged detail */}
+        <p className={cn('text-[11px] mb-3', state === 'pending' ? 'text-muted-foreground/40' : STATE_TITLE[state] + '/60')}>
+          {habit.currentStreak > 0 ? `${habit.currentStreak} day streak` : 'No streak yet'}
+        </p>
+
+        {/* ── Amount progress bar ── */}
+        {habit.detail_type === 'amount' && (
+          <div className="w-full mb-3 space-y-1">
+            <div className="flex justify-between text-[10px]">
+              <span className={cn(STATE_TITLE[state], 'opacity-70')}>
+                {habit.lastDetails?.amount ?? 0} {habit.detail_config?.unit ?? ''}
+              </span>
+              <span className="text-muted-foreground/40">
+                {habit.detail_config?.target ?? '?'} {habit.detail_config?.unit ?? ''}
+              </span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-border overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${(amountProgress ?? 0) * 100}%` }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
+                className={cn('h-full rounded-full', STATE_BAR[state])}
+              />
+            </div>
+          </div>
         )}
 
-        <div className="flex justify-between items-center mt-3">
-          <span className={cn(
-            'text-[11px]',
-            habit.completedToday ? 'text-drivn-green/60' : 'text-muted-foreground/30'
-          )}>
-            {habit.completedToday ? 'Done' : habit.detail_type !== 'none' ? 'Tap to log' : 'Not done'}
-          </span>
-          <div className={cn(
-            'w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center',
-            habit.completedToday
-              ? 'bg-drivn-green border-drivn-green text-white text-[10px] font-bold'
-              : 'border-muted-foreground/20'
-          )}>
-            {habit.completedToday && '✓'}
+        {/* ── Body sections dots ── */}
+        {habit.detail_type === 'body_sections' && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {ALL_SECTIONS.map((s) => {
+              const done = loggedSections.includes(s)
+              return (
+                <span
+                  key={s}
+                  className={cn(
+                    'text-[9px] font-medium px-1.5 py-0.5 rounded-md border transition-all',
+                    done
+                      ? cn(STATE_BAR[state], 'text-white border-transparent')
+                      : 'bg-muted/50 border-border/40 text-muted-foreground/40'
+                  )}
+                >
+                  {SECTION_LABELS[s]}
+                </span>
+              )
+            })}
           </div>
-        </div>
+        )}
+
+        {/* Status label */}
+        <span className={cn('text-[11px]', state === 'pending' ? 'text-muted-foreground/40' : STATE_TITLE[state] + '/70')}>
+          {habit.detail_type === 'none' || state === 'not_done' || state === 'pending'
+            ? STATE_LABEL[state]
+            : state === 'completed'
+            ? 'Done ✓'
+            : STATE_LABEL[state]}
+        </span>
       </motion.button>
 
       <AnimatePresence>
