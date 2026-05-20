@@ -6,6 +6,8 @@ import SideNav from '@/components/layout/SideNav'
 import { useTaskStore } from '@/stores/taskStore'
 import { useHabitStore } from '@/stores/habitStore'
 import { useUserStore } from '@/stores/userStore'
+import { Analytics } from '@/lib/analytics'
+import { getReminderTime } from '@/lib/notifications'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const fetchTasks = useTaskStore((s) => s.fetchTasks)
@@ -22,6 +24,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       fetchProfile(),
       fetchStreak(),
     ])
+
+    // Track session start once per day
+    const today = new Date().toISOString().slice(0, 10)
+    const lastSession = localStorage.getItem('drivn_last_session')
+    if (lastSession !== today) {
+      localStorage.setItem('drivn_last_session', today)
+      Analytics.sessionInitiated()
+    }
+
+    // Track if user opened within 30 min of their reminder time
+    getReminderTime().then((localTime) => {
+      if (!localTime) return
+      const [rh, rm] = localTime.split(':').map(Number)
+      const now = new Date()
+      const diffMin = (now.getHours() * 60 + now.getMinutes()) - (rh * 60 + rm)
+      if (diffMin >= 0 && diffMin <= 30) {
+        Analytics.returnedAfterReminder()
+      }
+    })
   }, [fetchTasks, fetchHabits, fetchTodayCompletions, fetchProfile, fetchStreak])
 
   return (

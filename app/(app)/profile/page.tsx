@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { format } from 'date-fns'
-import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check } from 'lucide-react'
+import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/stores/userStore'
 import { cn } from '@/lib/utils'
@@ -23,6 +23,7 @@ export default function ProfilePage() {
   const [reminderTime, setReminderTime] = useState('')
   const [showTimePicker, setShowTimePicker] = useState(false)
   const [savingTime, setSavingTime] = useState(false)
+  const [openGuide, setOpenGuide] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -218,6 +219,92 @@ export default function ProfilePage() {
           Enable notifications to set a daily reminder
         </p>
       )}
+
+      {/* Help & Setup Guide */}
+      <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3 mt-8">
+        Setup guide
+      </p>
+      <div className="rounded-2xl border border-border overflow-hidden divide-y divide-border/50">
+        {GUIDE_ITEMS.map((item) => (
+          <div key={item.id}>
+            <button
+              onClick={() => setOpenGuide(openGuide === item.id ? null : item.id)}
+              className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-secondary/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <item.icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <span className="text-sm text-foreground/75">{item.title}</span>
+              </div>
+              <ChevronDown className={cn(
+                'w-4 h-4 text-muted-foreground/40 transition-transform flex-shrink-0',
+                openGuide === item.id && 'rotate-180'
+              )} />
+            </button>
+            {openGuide === item.id && (
+              <div className="px-4 pb-4 space-y-2">
+                {item.steps.map((step, i) => (
+                  <div key={i} className="flex gap-3">
+                    <span className="text-[11px] font-medium text-primary/60 w-4 flex-shrink-0 mt-0.5">
+                      {i + 1}.
+                    </span>
+                    <p className="text-[12px] text-muted-foreground/70 leading-relaxed">{step}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
+
+const GUIDE_ITEMS = [
+  {
+    id: 'install',
+    title: 'Install as an app on your phone',
+    icon: Smartphone,
+    steps: [
+      'iPhone (Safari): tap the Share button at the bottom, then "Add to Home Screen", then "Add".',
+      'Android (Chrome): tap the three-dot menu, then "Add to Home Screen" or "Install app".',
+      'Open Drivn from the home screen icon — notifications only work when launched this way.',
+      'Desktop (Chrome/Edge): look for the install icon in the address bar and click it.',
+    ],
+  },
+  {
+    id: 'habits',
+    title: 'Set up your habits correctly',
+    icon: Repeat,
+    steps: [
+      'Go to the Habits tab and tap the + button to add a new habit.',
+      'Mark habits as Essential (⭐) if you must do them every day — these appear first on your home screen.',
+      'Use "Nice to have" for habits that are good to do but optional.',
+      'Choose a tracking type: Simple (just mark it done), Muscle groups (log which areas you trained), or Amount (track water, servings, etc.).',
+      'In edit mode (pencil icon), tap the ⭐ on any card to toggle its priority anytime.',
+    ],
+  },
+  {
+    id: 'reminders',
+    title: 'Enable daily reminders',
+    icon: Bell,
+    steps: [
+      'First install the app to your home screen (see above) — notifications require this on iPhone.',
+      'Come back to this Profile page and tap "Notifications" to turn them on.',
+      'Allow the permission prompt that appears.',
+      'Tap "Daily reminder" to set the time you want to be nudged each day.',
+      'The reminder will ask: "What\'s the one thing you need to get done today?"',
+    ],
+  },
+  {
+    id: 'priority',
+    title: 'Use priorities and focus sessions',
+    icon: Star,
+    steps: [
+      'Every task has a priority: High (do today), Medium, or Low.',
+      'The home screen automatically surfaces your most important task as "Next Best Action".',
+      'Tap a task to open it, then start a focus session to work on it distraction-free.',
+      'Completing tasks builds your streak — try to complete at least one task every day.',
+      'Use the Summary tab to see your activity calendar and spot patterns over time.',
+    ],
+  },
+]
