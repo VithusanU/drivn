@@ -82,13 +82,29 @@ export async function isSubscribed(): Promise<boolean> {
   return !!sub
 }
 
+// Convert local HH:MM to UTC HH:MM for storage
+function localToUTC(localHHMM: string): string {
+  const [h, m] = localHHMM.split(':').map(Number)
+  const d = new Date()
+  d.setHours(h, m, 0, 0)
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+}
+
+// Convert stored UTC HH:MM back to local HH:MM for display
+function utcToLocal(utcHHMM: string): string {
+  const [h, m] = utcHHMM.split(':').map(Number)
+  const d = new Date()
+  d.setUTCHours(h, m, 0, 0)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
 export async function saveReminderTime(time: string): Promise<void> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
   await supabase
     .from('push_subscriptions')
-    .update({ reminder_time: time })
+    .update({ reminder_time: localToUTC(time) })
     .eq('user_id', user.id)
 }
 
@@ -101,5 +117,6 @@ export async function getReminderTime(): Promise<string | null> {
     .select('reminder_time')
     .eq('user_id', user.id)
     .single()
-  return data?.reminder_time ?? null
+  if (!data?.reminder_time) return null
+  return utcToLocal(data.reminder_time)
 }
