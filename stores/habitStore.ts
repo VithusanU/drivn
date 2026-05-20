@@ -57,10 +57,15 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
 
     if (existingCompletion) {
       if (details) {
-        // Update the existing completion with new details (e.g. adding more water)
+        // Accumulate amount instead of replacing (e.g. 250ml + 250ml = 500ml)
+        const mergedDetails = { ...details }
+        if (typeof details.amount === 'number') {
+          const existing = (existingCompletion.details as HabitCompletionDetails | null)?.amount ?? 0
+          mergedDetails.amount = existing + details.amount
+        }
         const { data, error } = await supabase
           .from('habit_completions')
-          .update({ details })
+          .update({ details: mergedDetails })
           .eq('id', existingCompletion.id)
           .select()
           .single()

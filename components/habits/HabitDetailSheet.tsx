@@ -34,11 +34,13 @@ export default function HabitDetailSheet({ habit, onConfirm, onClose }: HabitDet
   const maxAmount = habit.detail_config?.target ?? habit.detail_config?.max ?? (unit === 'glasses' ? 8 : unit === 'oz' ? 64 : 2000)
   const isEditing = habit.completedToday
 
+  const alreadyLogged = habit.lastDetails?.amount ?? 0
+
   const [selectedSections, setSelectedSections] = useState<string[]>(
     habit.lastDetails?.body_sections ?? []
   )
   const [amount, setAmount] = useState<number>(
-    habit.lastDetails?.amount ?? AMOUNT_PRESETS[unit]?.[1] ?? 250
+    isEditing ? (AMOUNT_PRESETS[unit]?.[1] ?? 250) : (AMOUNT_PRESETS[unit]?.[1] ?? 250)
   )
   const [note, setNote] = useState(habit.lastDetails?.note ?? '')
 
@@ -134,9 +136,16 @@ export default function HabitDetailSheet({ habit, onConfirm, onClose }: HabitDet
         {/* Amount detail */}
         {habit.detail_type === 'amount' && (
           <div className="space-y-3 mb-6">
-            <p className="text-[11px] font-medium tracking-[0.1em] uppercase text-muted-foreground/60">
-              Amount
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-medium tracking-[0.1em] uppercase text-muted-foreground/60">
+                {isEditing ? 'Add more' : 'Amount'}
+              </p>
+              {isEditing && alreadyLogged > 0 && (
+                <span className="text-[11px] text-muted-foreground/50">
+                  Already logged: {alreadyLogged} {unit}
+                </span>
+              )}
+            </div>
 
             {/* Quick presets */}
             {AMOUNT_PRESETS[unit] && (
@@ -152,7 +161,7 @@ export default function HabitDetailSheet({ habit, onConfirm, onClose }: HabitDet
                         : 'border-border/50 text-muted-foreground/60 hover:border-border hover:text-foreground'
                     )}
                   >
-                    {preset}{unit}
+                    +{preset}{unit}
                   </button>
                 ))}
               </div>
@@ -217,7 +226,9 @@ export default function HabitDetailSheet({ habit, onConfirm, onClose }: HabitDet
           {habit.detail_type === 'body_sections' && selectedSections.length > 0
             ? `${isEditing ? 'Update' : 'Log'} ${selectedSections.length} muscle group${selectedSections.length > 1 ? 's' : ''}`
             : habit.detail_type === 'amount'
-            ? `${isEditing ? 'Update to' : 'Log'} ${amount} ${unit}`
+            ? isEditing
+              ? `Add ${amount} ${unit} → ${alreadyLogged + amount} ${unit} total`
+              : `Log ${amount} ${unit}`
             : 'Log habit'}
         </button>
       </motion.div>
