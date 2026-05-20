@@ -5,6 +5,19 @@ import { createClient } from '@/lib/supabase/client'
 import { getTodayISO } from '@/lib/utils'
 import type { Habit, HabitCompletion, HabitStore, HabitWithStreak, CreateHabitInput, HabitCompletionDetails, HabitPriority } from '@/types'
 
+// Parse 'YYYY-MM-DD' as a local calendar date (avoids UTC midnight timezone shifts)
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+// Days between two 'YYYY-MM-DD' strings (later - earlier)
+function daysDiff(laterStr: string, earlierStr: string): number {
+  return Math.round(
+    (parseLocalDate(laterStr).getTime() - parseLocalDate(earlierStr).getTime()) / 86_400_000
+  )
+}
+
 export const useHabitStore = create<HabitStore>((set, get) => ({
   habits: [],
   completions: [],
@@ -43,8 +56,7 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
       .select('*')
       .eq('completed_date', today)
 
-    // Most recent completion before today per habit (for "last done" label)
-    // Limit to last 60 days to keep the query light
+    // All completions before today from last 60 days (for streak calculation)
     const sixtyDaysAgo = new Date()
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
     const sixtyDaysAgoStr = sixtyDaysAgo.toISOString().split('T')[0]
@@ -56,17 +68,7 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
       .gte('completed_date', sixtyDaysAgoStr)
       .order('completed_date', { ascending: false })
 
-    // Keep only the single most recent row per habit
-    const seen = new Set<string>()
-    const lastCompletions: HabitCompletion[] = []
-    for (const c of (prevData ?? [])) {
-      if (!seen.has(c.habit_id)) {
-        seen.add(c.habit_id)
-        lastCompletions.push(c as HabitCompletion)
-      }
-    }
-
-    set({ completions: todayData ?? [], lastCompletions })
+    set({ completions: todayData ?? [], lastCompletions: (prevData ?? []) as HabitCompletion[] })
   },
 
   toggleHabit: async (habitId: string, details?: HabitCompletionDetails) => {
@@ -173,25 +175,26 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
       )
       const completedToday = !!todayCompletion
 
-      // Streak: combine today's completion with the most recent previous one
-      const prevCompletion = lastCompletions.find((c) => c.habit_id === habit.id)
+      // All past dates for this habit, sorted descending
+      const pastDates = lastCompletions
+        .filter((c) => c.habit_id === habit.id)
+        .map((c) => c.completed_date)
+
+      // Walk consecutive days backward from today
+      const allDates = completedToday ? [today, ...pastDates] : pastDates
       let currentStreak = 0
-      if (completedToday) {
-        currentStreak = 1
-        if (prevCompletion) {
-          const prev = new Date(prevCompletion.completed_date)
-          const todayDate = new Date(today)
-          const diffDays = Math.floor((todayDate.getTime() - prev.getTime()) / 86_400_000)
-          if (diffDays === 1) currentStreak = 2  // at least 2; full history would give exact number
+      for (let i = 0; i < allDates.length; i++) {
+        if (i === 0) {
+          // First entry must be today or yesterday to start a streak
+          if (daysDiff(today, allDates[0]) <= 1) currentStreak++
+          else break
+        } else {
+          if (daysDiff(allDates[i - 1], allDates[i]) === 1) currentStreak++
+          else break
         }
-      } else if (prevCompletion) {
-        const prev = new Date(prevCompletion.completed_date)
-        const todayDate = new Date(today)
-        const diffDays = Math.floor((todayDate.getTime() - prev.getTime()) / 86_400_000)
-        if (diffDays === 1) currentStreak = 1  // completed yesterday, streak still alive
       }
 
-      const lastCompletedDate = prevCompletion?.completed_date ?? null
+      const lastCompletedDate = pastDates[0] ?? null
 
       return {
         ...habit,
