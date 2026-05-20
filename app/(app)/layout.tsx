@@ -16,6 +16,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const fetchProfile = useUserStore((s) => s.fetchProfile)
   const fetchStreak = useUserStore((s) => s.fetchStreak)
 
+  // Re-fetch completions when the tab becomes visible again — guards against the app
+  // being left open overnight so yesterday's data doesn't bleed into a new day.
+  useEffect(() => {
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') fetchTodayCompletions()
+    }
+    document.addEventListener('visibilitychange', handleVisible)
+    return () => document.removeEventListener('visibilitychange', handleVisible)
+  }, [fetchTodayCompletions])
+
   useEffect(() => {
     Promise.all([
       fetchTasks(),

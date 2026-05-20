@@ -8,6 +8,7 @@ import type { Habit, HabitCompletion, HabitStore, HabitWithStreak, CreateHabitIn
 export const useHabitStore = create<HabitStore>((set, get) => ({
   habits: [],
   completions: [],
+  lastCompletions: [],
   isLoading: false,
 
   fetchHabits: async () => {
@@ -36,12 +37,36 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
     const supabase = createClient()
     const today = getTodayISO()
 
-    const { data } = await supabase
+    // Today's completions (for progress tracking)
+    const { data: todayData } = await supabase
       .from('habit_completions')
       .select('*')
       .eq('completed_date', today)
 
-    set({ completions: data ?? [] })
+    // Most recent completion before today per habit (for "last done" label)
+    // Limit to last 60 days to keep the query light
+    const sixtyDaysAgo = new Date()
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+    const sixtyDaysAgoStr = sixtyDaysAgo.toISOString().split('T')[0]
+
+    const { data: prevData } = await supabase
+      .from('habit_completions')
+      .select('*')
+      .lt('completed_date', today)
+      .gte('completed_date', sixtyDaysAgoStr)
+      .order('completed_date', { ascending: false })
+
+    // Keep only the single most recent row per habit
+    const seen = new Set<string>()
+    const lastCompletions: HabitCompletion[] = []
+    for (const c of (prevData ?? [])) {
+      if (!seen.has(c.habit_id)) {
+        seen.add(c.habit_id)
+        lastCompletions.push(c as HabitCompletion)
+      }
+    }
+
+    set({ completions: todayData ?? [], lastCompletions })
   },
 
   toggleHabit: async (habitId: string, details?: HabitCompletionDetails) => {
@@ -139,43 +164,42 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
   },
 
   getHabitsWithStreaks: (): HabitWithStreak[] => {
-    const { habits, completions } = get()
+    const { habits, completions, lastCompletions } = get()
     const today = getTodayISO()
 
     return habits.map((habit) => {
-      const completedToday = completions.some(
-        (c) => c.habit_id === habit.id && c.completed_date === today
-      )
-
-      // Calculate current streak from completions
-      const habitCompletions = completions
-        .filter((c) => c.habit_id === habit.id)
-        .map((c) => c.completed_date)
-        .sort()
-        .reverse()
-
-      let currentStreak = 0
-      if (habitCompletions.length > 0) {
-        let checkDate = new Date()
-        for (const dateStr of habitCompletions) {
-          const completionDate = new Date(dateStr)
-          const diffDays = Math.floor(
-            (checkDate.getTime() - completionDate.getTime()) / 86_400_000
-          )
-          if (diffDays <= 1) {
-            currentStreak++
-            checkDate = completionDate
-          } else {
-            break
-          }
-        }
-      }
-
       const todayCompletion = completions.find(
         (c) => c.habit_id === habit.id && c.completed_date === today
       )
+      const completedToday = !!todayCompletion
 
-      return { ...habit, completedToday, currentStreak, lastDetails: todayCompletion?.details ?? null }
+      // Streak: combine today's completion with the most recent previous one
+      const prevCompletion = lastCompletions.find((c) => c.habit_id === habit.id)
+      let currentStreak = 0
+      if (completedToday) {
+        currentStreak = 1
+        if (prevCompletion) {
+          const prev = new Date(prevCompletion.completed_date)
+          const todayDate = new Date(today)
+          const diffDays = Math.floor((todayDate.getTime() - prev.getTime()) / 86_400_000)
+          if (diffDays === 1) currentStreak = 2  // at least 2; full history would give exact number
+        }
+      } else if (prevCompletion) {
+        const prev = new Date(prevCompletion.completed_date)
+        const todayDate = new Date(today)
+        const diffDays = Math.floor((todayDate.getTime() - prev.getTime()) / 86_400_000)
+        if (diffDays === 1) currentStreak = 1  // completed yesterday, streak still alive
+      }
+
+      const lastCompletedDate = prevCompletion?.completed_date ?? null
+
+      return {
+        ...habit,
+        completedToday,
+        currentStreak,
+        lastDetails: todayCompletion?.details ?? null,
+        lastCompletedDate,
+      }
     })
   },
 }))

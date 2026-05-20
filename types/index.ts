@@ -95,6 +95,7 @@ export interface HabitWithStreak extends Habit {
   completedToday: boolean
   currentStreak: number
   lastDetails?: HabitCompletionDetails | null
+  lastCompletedDate: string | null  // most recent completion date before today
 }
 
 export interface CreateHabitInput {
@@ -150,6 +151,7 @@ export interface TaskStore {
 export interface HabitStore {
   habits: Habit[]
   completions: HabitCompletion[]
+  lastCompletions: HabitCompletion[]
   isLoading: boolean
   fetchHabits: () => Promise<void>
   fetchTodayCompletions: () => Promise<void>

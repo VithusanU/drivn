@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { isYesterday, parseISO, format } from 'date-fns'
 import { useHabitStore } from '@/stores/habitStore'
 import { cn } from '@/lib/utils'
 import HabitDetailSheet from './HabitDetailSheet'
@@ -63,6 +64,13 @@ const STATE_BAR: Record<HabitState, string> = {
   pending: 'bg-muted-foreground/20',
 }
 
+function getLastDoneLabel(date: string | null): string | null {
+  if (!date) return null
+  const d = parseISO(date)
+  if (isYesterday(d)) return 'Last done yesterday'
+  return `Last done ${format(d, 'MMM d')}`
+}
+
 const SECTION_LABELS: Record<string, string> = {
   chest: 'Ch', back: 'Ba', shoulders: 'Sh', arms: 'Ar',
   core: 'Co', legs: 'Le', glutes: 'Gl', cardio: 'Ca',
@@ -110,10 +118,18 @@ export default function HabitCard({ habit, disabled }: HabitCardProps) {
           {habit.title}
         </p>
 
-        {/* Streak or logged detail */}
-        <p className={cn('text-[11px] mb-3', state === 'pending' ? 'text-muted-foreground/40' : STATE_TITLE[state] + '/60')}>
+        {/* Streak */}
+        <p className={cn('text-[11px]', state === 'pending' ? 'text-muted-foreground/40' : STATE_TITLE[state] + '/60')}>
           {habit.currentStreak > 0 ? `${habit.currentStreak} day streak` : 'No streak yet'}
         </p>
+
+        {/* Last done label — only when not completed today */}
+        {!habit.completedToday && habit.lastCompletedDate && (
+          <p className="text-[10px] text-muted-foreground/35 mb-3">
+            {getLastDoneLabel(habit.lastCompletedDate)}
+          </p>
+        )}
+        {(habit.completedToday || !habit.lastCompletedDate) && <div className="mb-3" />}
 
         {/* ── Amount progress bar ── */}
         {habit.detail_type === 'amount' && (
