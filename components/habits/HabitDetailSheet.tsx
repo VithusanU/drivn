@@ -31,7 +31,7 @@ interface HabitDetailSheetProps {
 
 export default function HabitDetailSheet({ habit, onConfirm, onClose }: HabitDetailSheetProps) {
   const unit = habit.detail_config?.unit ?? 'ml'
-  const maxAmount = habit.detail_config?.max ?? (unit === 'glasses' ? 8 : unit === 'oz' ? 64 : 2000)
+  const maxAmount = habit.detail_config?.target ?? habit.detail_config?.max ?? (unit === 'glasses' ? 8 : unit === 'oz' ? 64 : 2000)
 
   const [selectedSections, setSelectedSections] = useState<string[]>([])
   const [amount, setAmount] = useState<number>(

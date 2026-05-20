@@ -23,6 +23,7 @@ export default function HabitsPage() {
   const [newEmoji, setNewEmoji] = useState('✅')
   const [detailType, setDetailType] = useState<HabitDetailType>('none')
   const [unit, setUnit] = useState('ml')
+  const [target, setTarget] = useState<number>(8)
   const createHabit = useHabitStore((s) => s.createHabit)
   const getHabitsWithStreaks = useHabitStore((s) => s.getHabitsWithStreaks)
 
@@ -35,12 +36,13 @@ export default function HabitsPage() {
       title: newTitle.trim(),
       emoji: newEmoji,
       detail_type: detailType,
-      detail_config: detailType === 'amount' ? { unit } : undefined,
+      detail_config: detailType === 'amount' ? { unit, target } : undefined,
     })
     setNewTitle('')
     setNewEmoji('✅')
     setDetailType('none')
     setUnit('ml')
+    setTarget(8)
     setShowAdd(false)
   }
 
@@ -50,6 +52,7 @@ export default function HabitsPage() {
     setNewEmoji('✅')
     setDetailType('none')
     setUnit('ml')
+    setTarget(8)
   }
 
   return (
@@ -188,27 +191,66 @@ export default function HabitsPage() {
                 ))}
               </div>
 
-              {/* Unit input for amount type */}
+              {/* Unit + target for amount type */}
               {detailType === 'amount' && (
-                <div className="mb-5">
-                  <p className="text-[10px] font-medium tracking-[0.1em] uppercase text-muted-foreground/60 mb-2">
-                    Unit
-                  </p>
-                  <div className="flex gap-2">
-                    {['ml', 'oz', 'glasses', 'servings'].map((u) => (
-                      <button
-                        key={u}
-                        onClick={() => setUnit(u)}
-                        className={cn(
-                          'flex-1 py-2 rounded-xl border text-[12px] font-medium transition-all',
-                          unit === u
-                            ? 'bg-primary/10 border-primary/40 text-primary'
-                            : 'border-border/50 text-muted-foreground/60 hover:border-border'
-                        )}
-                      >
-                        {u}
-                      </button>
-                    ))}
+                <div className="mb-5 space-y-4">
+                  <div>
+                    <p className="text-[10px] font-medium tracking-[0.1em] uppercase text-muted-foreground/60 mb-2">
+                      Unit
+                    </p>
+                    <div className="flex gap-2">
+                      {['ml', 'oz', 'glasses', 'servings'].map((u) => (
+                        <button
+                          key={u}
+                          onClick={() => {
+                            setUnit(u)
+                            setTarget(u === 'ml' ? 2000 : u === 'oz' ? 64 : 8)
+                          }}
+                          className={cn(
+                            'flex-1 py-2 rounded-xl border text-[12px] font-medium transition-all',
+                            unit === u
+                              ? 'bg-primary/10 border-primary/40 text-primary'
+                              : 'border-border/50 text-muted-foreground/60 hover:border-border'
+                          )}
+                        >
+                          {u}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] font-medium tracking-[0.1em] uppercase text-muted-foreground/60">
+                        Daily target
+                      </p>
+                      <span className="text-[13px] font-medium text-primary">{target} {unit}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={unit === 'ml' ? 100 : unit === 'oz' ? 4 : 1}
+                      max={unit === 'ml' ? 4000 : unit === 'oz' ? 128 : 20}
+                      step={unit === 'ml' ? 100 : unit === 'oz' ? 2 : 1}
+                      value={target}
+                      onChange={(e) => setTarget(Number(e.target.value))}
+                      className="w-full h-1.5 appearance-none rounded-full cursor-pointer
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+                        [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary
+                        [&::-webkit-slider-thumb]:shadow-[0_0_0_3px_hsl(var(--primary)/0.2)]
+                        [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4
+                        [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0
+                        [&::-moz-range-thumb]:bg-primary"
+                      style={{
+                        background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${
+                          ((target - (unit === 'ml' ? 100 : unit === 'oz' ? 4 : 1)) /
+                           ((unit === 'ml' ? 4000 : unit === 'oz' ? 128 : 20) - (unit === 'ml' ? 100 : unit === 'oz' ? 4 : 1))) * 100
+                        }%, hsl(var(--border)) ${
+                          ((target - (unit === 'ml' ? 100 : unit === 'oz' ? 4 : 1)) /
+                           ((unit === 'ml' ? 4000 : unit === 'oz' ? 128 : 20) - (unit === 'ml' ? 100 : unit === 'oz' ? 4 : 1))) * 100
+                        }%, hsl(var(--border)) 100%)`,
+                      }}
+                    />
                   </div>
                 </div>
               )}
