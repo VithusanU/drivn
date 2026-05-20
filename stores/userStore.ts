@@ -51,4 +51,20 @@ export const useUserStore = create<UserStore>((set) => ({
 
     if (data) set({ streak: data as UserStreak })
   },
+
+  markOnboarded: async () => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const now = new Date().toISOString()
+    await supabase
+      .from('user_profiles')
+      .update({ onboarded_at: now })
+      .eq('id', user.id)
+
+    set((state) => ({
+      profile: state.profile ? { ...state.profile, onboarded_at: now } : null,
+    }))
+  },
 }))

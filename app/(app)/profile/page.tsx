@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { format } from 'date-fns'
-import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star } from 'lucide-react'
+import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/stores/userStore'
 import { cn } from '@/lib/utils'
@@ -179,6 +179,18 @@ export default function ProfilePage() {
           <div className="flex items-center gap-3">
             <Heart className="w-4 h-4 text-muted-foreground" />
             <span>Manage habits</span>
+          </div>
+          <span className="text-muted-foreground/50 text-xs">›</span>
+        </button>
+
+        {/* Replay onboarding */}
+        <button
+          onClick={() => router.push('/onboarding?replay=true')}
+          className="w-full flex items-center justify-between px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors border-b border-border/50"
+        >
+          <div className="flex items-center gap-3">
+            <PlayCircle className="w-4 h-4 text-muted-foreground" />
+            <span>Replay onboarding</span>
           </div>
           <span className="text-muted-foreground/50 text-xs">›</span>
         </button>

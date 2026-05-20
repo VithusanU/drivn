@@ -1,3 +1,9 @@
+'use client'
+
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useTaskStore } from '@/stores/taskStore'
+import { useUserStore } from '@/stores/userStore'
 import AppHeader from '@/components/layout/AppHeader'
 import NextBestAction from '@/components/dashboard/NextBestAction'
 import TaskGroups from '@/components/dashboard/TaskGroups'
@@ -7,6 +13,18 @@ import QuickCapture from '@/components/dashboard/QuickCapture'
 import MotivationalQuote from '@/components/dashboard/MotivationalQuote'
 
 export default function HomePage() {
+  const router = useRouter()
+  const profile = useUserStore((s) => s.profile)
+  const tasks = useTaskStore((s) => s.tasks)
+  const hasFetched = useTaskStore((s) => s.hasFetched)
+
+  useEffect(() => {
+    if (!hasFetched || !profile) return
+    if (!profile.onboarded_at && tasks.length === 0) {
+      router.replace('/onboarding')
+    }
+  }, [hasFetched, profile, tasks, router])
+
   return (
     <div className="flex flex-col min-h-screen">
       <AppHeader />

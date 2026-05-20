@@ -9,6 +9,7 @@ import type { Task, TaskStore, CreateTaskInput, UpdateTaskInput, TaskGroup, Reco
 export const useTaskStore = create<TaskStore>((set, get) => ({
   tasks: [],
   isLoading: false,
+  hasFetched: false,
   error: null,
 
   fetchTasks: async () => {
@@ -22,9 +23,9 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      set({ tasks: data ?? [], isLoading: false })
+      set({ tasks: data ?? [], isLoading: false, hasFetched: true })
     } catch (err) {
-      set({ error: (err as Error).message, isLoading: false })
+      set({ error: (err as Error).message, isLoading: false, hasFetched: true })
     }
   },
 

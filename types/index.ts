@@ -7,6 +7,7 @@ export interface UserProfile {
   avatar_url: string | null
   created_at: string
   last_active_date: string | null
+  onboarded_at: string | null
 }
 
 // ─── Tasks ─────────────────────────────────────────────────────────────────
@@ -135,6 +136,7 @@ export type RecommendationReason =
 export interface TaskStore {
   tasks: Task[]
   isLoading: boolean
+  hasFetched: boolean
   error: string | null
   fetchTasks: () => Promise<void>
   createTask: (input: CreateTaskInput) => Promise<Task | null>
@@ -165,4 +167,5 @@ export interface UserStore {
   fetchProfile: () => Promise<void>
   fetchStreak: () => Promise<void>
   updateStreak: () => Promise<void>
+  markOnboarded: () => Promise<void>
 }
