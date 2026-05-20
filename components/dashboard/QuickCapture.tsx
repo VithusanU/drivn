@@ -119,13 +119,12 @@ export default function QuickCapture() {
 
   return (
     <div className={cn(
-      'fixed z-20 px-4 pb-3 w-full',
-      // mobile: sit above bottom nav, centered
+      'fixed z-20 pb-3 w-full',
       'bottom-[60px] left-0 right-0',
-      // desktop: sit above page bottom, offset past sidebar, centered in content area
       'md:bottom-6 md:left-[220px] md:right-0'
     )}>
-      <div className="max-w-md mx-auto">
+      <div className="max-w-2xl mx-auto px-4">
+        <div className="max-w-md mx-auto">
       <AnimatePresence>
         {expanded && (
           <motion.div
@@ -347,6 +346,7 @@ export default function QuickCapture() {
           )}
         </AnimatePresence>
       </motion.div>
+      </div>
       </div>
     </div>
   )
