@@ -51,29 +51,19 @@ export default function AdminPage() {
 
   const fetchMetrics = async () => {
     const supabase = createClient()
-    const oneWeekAgo = new Date()
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+    const { data, error } = await supabase.rpc('get_admin_metrics')
+    if (error || !data) return
 
-    const [
-      { count: totalUsers },
-      { count: signupsThisWeek },
-      { count: tasksCreated },
-      { count: tasksCompleted },
-    ] = await Promise.all([
-      supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
-      supabase.from('user_profiles').select('*', { count: 'exact', head: true }).gte('created_at', oneWeekAgo.toISOString()),
-      supabase.from('tasks').select('*', { count: 'exact', head: true }),
-      supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
-    ])
-
-    const total = (tasksCreated ?? 0) + (tasksCompleted ?? 0)
-    const rate = total > 0 ? Math.round(((tasksCompleted ?? 0) / total) * 100) : 0
+    const tasksCreated = data.tasksCreated ?? 0
+    const tasksCompleted = data.tasksCompleted ?? 0
+    const total = tasksCreated + tasksCompleted
+    const rate = total > 0 ? Math.round((tasksCompleted / total) * 100) : 0
 
     setMetrics({
-      totalUsers: totalUsers ?? 0,
-      signupsThisWeek: signupsThisWeek ?? 0,
-      tasksCreated: tasksCreated ?? 0,
-      tasksCompleted: tasksCompleted ?? 0,
+      totalUsers: data.totalUsers ?? 0,
+      signupsThisWeek: data.signupsThisWeek ?? 0,
+      tasksCreated,
+      tasksCompleted,
       completionRate: rate,
     })
   }
