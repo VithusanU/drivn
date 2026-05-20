@@ -34,14 +34,16 @@ export default function SideNav() {
     )}>
       {/* Brand */}
       <div className="mb-8 px-2">
-        <Image
-          src="/logo.png"
-          alt="Drivn"
-          width={120}
-          height={120}
-          className="rounded-xl dark:invert"
-          priority
-        />
+        <Link href="/">
+          <Image
+            src="/logo.png"
+            alt="Drivn"
+            width={120}
+            height={120}
+            className="rounded-xl dark:invert"
+            priority
+          />
+        </Link>
       </div>
 
       {/* Nav items */}
