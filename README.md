@@ -13,8 +13,9 @@ Drivn is a productivity PWA that cuts through decision fatigue by surfacing exac
 Most productivity apps help you plan. Drivn helps you *start*. Instead of showing you a list of 40 tasks and making you decide what matters, Drivn's recommendation engine ranks everything in the background and surfaces the single highest-priority action every time you open the app.
 
 - **Next Best Action** — one task, always front and centre, always ready
+- **Voice task capture** — speak naturally and the app extracts the title, due date, and urgency automatically
 - **Habit streaks** — essential vs. nice-to-have habits tracked daily
-- **Focus sessions** — distraction-free timer tied to a specific task
+- **Focus sessions** — distraction-free timer tied to a specific task (keeps running in the background, fires a notification and chime on completion)
 - **Momentum tracking** — daily streak and completion calendar
 - **Push notifications** — daily reminders via Web Push API (PWA required)
 - **Onboarding flow** — interactive first-run that captures your first task and marks it done before you leave
@@ -31,6 +32,7 @@ Most productivity apps help you plan. Drivn helps you *start*. Instead of showin
 | Animations | Framer Motion |
 | State management | Zustand |
 | Backend / Auth / DB | Supabase (PostgreSQL + RLS) |
+| Voice input | Web Speech API (on-device, no API key) |
 | Push notifications | Web Push API + Supabase Edge Functions + pg_cron |
 | Analytics | PostHog |
 | Error monitoring | Sentry |
@@ -49,6 +51,26 @@ The recommendation engine scores every active task based on urgency, due date, a
 - Optional due date and time estimate
 - Grouped by Now / Soon / Later
 - Focus session timer per task
+
+### Voice task capture
+Tap the microphone icon in the quick-capture bar and speak naturally. The app parses your phrase on-device (no external API) and fills in the task title, due date, and urgency automatically.
+
+**Supported phrases (examples):**
+
+| What you say | What gets created |
+|---|---|
+| "Cut grass sometime this week" | Title: Cut grass · Due: end of week |
+| "Call doctor urgently today" | Title: Call doctor · Due: today · Priority: **High** |
+| "Finish report by Friday" | Title: Finish report · Due: next Friday |
+| "Send email ASAP" | Title: Send email · Priority: **High** |
+| "Buy groceries in 3 days" | Title: Buy groceries · Due: 3 days from now |
+| "Clean room whenever" | Title: Clean room · Priority: **Low** |
+
+**Recognised time phrases:** today, tonight, tomorrow, day after tomorrow, this week, next week, in N days, in a few days, by [day name], next [day name]
+
+**Urgency signals:** urgent / urgently / ASAP / immediately / critical → **High** · whenever / eventually / no rush / low priority → **Low**
+
+The mic button only appears in browsers that support the Web Speech API (Chrome, Edge, Safari 15+). Firefox is not supported.
 
 ### Habit tracking
 - Two tiers: Essential (must do daily) and Nice to have
@@ -107,6 +129,7 @@ components/
 stores/                 # Zustand stores (taskStore, habitStore, userStore)
 lib/
 ├── engine/             # Recommendation algorithm
+├── voiceParser.ts      # NLP parser for voice task input (date, urgency, title extraction)
 ├── notifications.ts    # Push subscribe / unsubscribe / time helpers
 ├── analytics.ts        # PostHog event wrappers
 └── supabase/           # Browser + server clients
