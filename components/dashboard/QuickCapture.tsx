@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Plus, SlidersHorizontal, X } from 'lucide-react'
+import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { cn } from '@/lib/utils'
+import { parseVoiceInput, isSpeechRecognitionSupported } from '@/lib/voiceParser'
 import type { TaskUrgency } from '@/types'
 
 const URGENCY_OPTIONS: { value: TaskUrgency; label: string }[] = [
@@ -66,6 +67,8 @@ const DATE_PRESETS = [
   },
 ]
 
+type VoiceState = 'idle' | 'listening' | 'processing'
+
 export default function QuickCapture() {
   const [value, setValue] = useState('')
   const [saving, setSaving] = useState(false)
@@ -76,8 +79,17 @@ export default function QuickCapture() {
   const [dueDate, setDueDate] = useState<string>('')
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null)
 
+  const [voiceState, setVoiceState] = useState<VoiceState>('idle')
+  const [voiceSupported, setVoiceSupported] = useState(false)
+  const [interimText, setInterimText] = useState('')
+
   const inputRef = useRef<HTMLInputElement>(null)
+  const recognitionRef = useRef<InstanceType<typeof window.SpeechRecognition> | null>(null)
   const createTask = useTaskStore((s) => s.createTask)
+
+  useEffect(() => {
+    setVoiceSupported(isSpeechRecognitionSupported())
+  }, [])
 
   const resetOptions = () => {
     setUrgency('medium')
@@ -114,6 +126,76 @@ export default function QuickCapture() {
       inputRef.current?.blur()
     }
   }
+
+  const stopListening = () => {
+    recognitionRef.current?.stop()
+    recognitionRef.current = null
+    setVoiceState('idle')
+    setInterimText('')
+  }
+
+  const startListening = () => {
+    if (!voiceSupported) return
+
+    // If already listening, stop
+    if (voiceState === 'listening') {
+      stopListening()
+      return
+    }
+
+    const SR = (window.SpeechRecognition ?? (window as any).webkitSpeechRecognition) as typeof window.SpeechRecognition
+    const recognition = new SR()
+    recognition.lang = 'en-US'
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.maxAlternatives = 1
+
+    recognition.onstart = () => {
+      setVoiceState('listening')
+      setInterimText('')
+    }
+
+    recognition.onresult = (event) => {
+      let interim = ''
+      let final = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript
+        if (event.results[i].isFinal) final += t
+        else interim += t
+      }
+      // Show interim transcript live in input placeholder area
+      setInterimText(interim)
+      if (final) {
+        setVoiceState('processing')
+        setInterimText('')
+        const parsed = parseVoiceInput(final)
+        setValue(parsed.title)
+        setUrgency(parsed.urgency)
+        if (parsed.dueDate) {
+          setDueDate(parsed.dueDate)
+          setExpanded(true)   // reveal options panel so user can see what was parsed
+        }
+      }
+    }
+
+    recognition.onerror = () => {
+      stopListening()
+    }
+
+    recognition.onend = () => {
+      recognitionRef.current = null
+      setVoiceState((s) => s === 'listening' ? 'idle' : s)
+      setInterimText('')
+    }
+
+    recognitionRef.current = recognition
+    recognition.start()
+  }
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => { recognitionRef.current?.abort() }
+  }, [])
 
   const todayStr = new Date().toISOString().split('T')[0]
 
@@ -278,7 +360,8 @@ export default function QuickCapture() {
           'bg-card border border-border',
           'shadow-[0_-8px_32px_rgba(0,0,0,0.15)] dark:shadow-[0_-8px_32px_rgba(0,0,0,0.4)]',
           'transition-all duration-150',
-          value.length > 0 && 'border-primary/30'
+          value.length > 0 && 'border-primary/30',
+          voiceState === 'listening' && 'border-red-500/40'
         )}
       >
         <Plus className="w-4 h-4 text-muted-foreground/40 flex-shrink-0" />
@@ -287,13 +370,49 @@ export default function QuickCapture() {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="What needs to get done?"
+          placeholder={
+            voiceState === 'listening'
+              ? (interimText || 'Listening…')
+              : 'What needs to get done?'
+          }
           className={cn(
             'flex-1 bg-transparent border-none outline-none py-3',
             'text-[14px] text-foreground/70 placeholder:text-muted-foreground/30',
-            'font-sans'
+            'font-sans',
+            voiceState === 'listening' && 'placeholder:text-red-400/60'
           )}
         />
+
+        {/* Mic button — only shown when speech recognition is supported */}
+        {voiceSupported && (
+          <button
+            onClick={startListening}
+            aria-label={voiceState === 'listening' ? 'Stop listening' : 'Voice input'}
+            className={cn(
+              'flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all',
+              voiceState === 'listening'
+                ? 'text-red-400 bg-red-500/10'
+                : 'text-muted-foreground/30 hover:text-muted-foreground/60'
+            )}
+          >
+            <AnimatePresence mode="wait">
+              {voiceState === 'listening' ? (
+                <motion.div
+                  key="mic-on"
+                  initial={{ scale: 0.8 }}
+                  animate={{ scale: [1, 1.15, 1] }}
+                  transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
+                >
+                  <MicOff className="w-3.5 h-3.5" />
+                </motion.div>
+              ) : (
+                <motion.div key="mic-off" initial={{ scale: 0.8 }} animate={{ scale: 1 }}>
+                  <Mic className="w-3.5 h-3.5" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </button>
+        )}
 
         {/* Expand / collapse options */}
         <button
@@ -313,7 +432,7 @@ export default function QuickCapture() {
         </button>
 
         <AnimatePresence mode="wait">
-          {value.length > 0 && (
+          {value.length > 0 && voiceState !== 'listening' && (
             <motion.button
               key="submit"
               initial={{ scale: 0, opacity: 0 }}
