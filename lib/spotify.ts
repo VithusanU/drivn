@@ -6,7 +6,10 @@ const SCOPES = [
   'streaming',
   'playlist-read-private',
   'playlist-read-collaborative',
+  'user-library-read',
 ].join(' ')
+
+export const LIKED_SONGS_ID = 'liked-songs'
 
 function getRedirectUri() {
   if (typeof window !== 'undefined') {
@@ -257,12 +260,13 @@ export interface SpotifyPlaylistTrack {
 }
 
 export async function getUserPlaylists(): Promise<SpotifyPlaylist[]> {
-  const res = await spotifyFetch('/me/playlists?limit=20')
+  const res = await spotifyFetch('/me/playlists?limit=50')
   if (!res) throw new Error('network')
   if (res.status === 401) throw new Error('unauthorized')
   if (!res.ok) throw new Error(`spotify_${res.status}`)
   const data = await res.json()
-  return (data.items ?? [])
+
+  const playlists: SpotifyPlaylist[] = (data.items ?? [])
     .filter(Boolean)
     .map((p: {
       id: string; name: string; uri: string;
@@ -275,30 +279,72 @@ export async function getUserPlaylists(): Promise<SpotifyPlaylist[]> {
       trackCount: p.tracks?.total ?? 0,
       uri: p.uri,
     }))
+
+  // Prepend Liked Songs (requires user-library-read scope)
+  const likedSongs: SpotifyPlaylist = {
+    id: LIKED_SONGS_ID,
+    name: 'Liked Songs',
+    imageUrl: '',
+    trackCount: -1, // fetched separately
+    uri: LIKED_SONGS_ID,
+  }
+
+  return [likedSongs, ...playlists]
 }
 
 export async function getPlaylistTracks(playlistId: string): Promise<SpotifyPlaylistTrack[]> {
-  const res = await spotifyFetch(
-    `/playlists/${playlistId}/tracks?limit=50&fields=items(track(id,name,uri,duration_ms,artists,album(images)))`
-  )
+  const res = await spotifyFetch(`/playlists/${playlistId}/tracks?limit=50`)
   if (!res) throw new Error('network')
   if (res.status === 401) throw new Error('unauthorized')
   if (!res.ok) throw new Error(`spotify_${res.status}`)
   const data = await res.json()
   return (data.items ?? [])
-    .filter((i: { track: SpotifyPlaylistTrack | null }) => i?.track)
+    .filter((i: { track: { id: string; type: string } | null }) => i?.track?.id && i.track.type === 'track')
     .map((i: {
       track: {
         id: string; name: string; uri: string; duration_ms: number;
-        artists: { name: string }[];
+        artists: { name: string }[] | null;
         album: { images: { url: string }[] } | null;
       }
     }) => ({
       id: i.track.id,
-      name: i.track.name,
+      name: i.track.name ?? 'Unknown',
       artists: i.track.artists?.map((a) => a.name).join(', ') ?? '',
       albumArt: i.track.album?.images?.[0]?.url ?? '',
       uri: i.track.uri,
-      durationMs: i.track.duration_ms,
+      durationMs: i.track.duration_ms ?? 0,
     }))
+}
+
+export async function getLikedTracks(): Promise<SpotifyPlaylistTrack[]> {
+  const res = await spotifyFetch('/me/tracks?limit=50')
+  if (!res) throw new Error('network')
+  if (res.status === 401) throw new Error('unauthorized')
+  if (res.status === 403) throw new Error('no_scope')
+  if (!res.ok) throw new Error(`spotify_${res.status}`)
+  const data = await res.json()
+  return (data.items ?? [])
+    .filter((i: { track: { id: string } | null }) => i?.track?.id)
+    .map((i: {
+      track: {
+        id: string; name: string; uri: string; duration_ms: number;
+        artists: { name: string }[] | null;
+        album: { images: { url: string }[] } | null;
+      }
+    }) => ({
+      id: i.track.id,
+      name: i.track.name ?? 'Unknown',
+      artists: i.track.artists?.map((a) => a.name).join(', ') ?? '',
+      albumArt: i.track.album?.images?.[0]?.url ?? '',
+      uri: i.track.uri,
+      durationMs: i.track.duration_ms ?? 0,
+    }))
+}
+
+export async function playTracks(uris: string[], offsetIndex = 0) {
+  await spotifyFetch('/me/player/play', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uris, offset: { position: offsetIndex } }),
+  })
 }

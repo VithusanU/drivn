@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { SkipBack, SkipForward, Play, Pause, Music, Unlink, ListMusic, ChevronLeft, Clock, CheckCircle, ExternalLink } from 'lucide-react'
+import { SkipBack, SkipForward, Play, Pause, Music, Unlink, ListMusic, ChevronLeft, Clock, CheckCircle, ExternalLink, Heart } from 'lucide-react'
 import {
   isSpotifyConnected, startSpotifyAuth, disconnectSpotify,
-  getUserPlaylists, getPlaylistTracks, playContext,
+  getUserPlaylists, getPlaylistTracks, getLikedTracks, playContext, playTracks,
+  LIKED_SONGS_ID,
   type SpotifyPlaylist, type SpotifyPlaylistTrack,
 } from '@/lib/spotify'
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer'
@@ -147,7 +148,9 @@ export default function MusicWidget() {
     setBrowseLoading(true)
     setBrowseError('')
     try {
-      const data = await getPlaylistTracks(playlist.id)
+      const data = playlist.id === LIKED_SONGS_ID
+        ? await getLikedTracks()
+        : await getPlaylistTracks(playlist.id)
       setTracks(data)
     } catch (err) {
       const msg = err instanceof Error ? err.message : ''
@@ -155,6 +158,8 @@ export default function MusicWidget() {
         disconnectSpotify()
         setConnected(false)
         setView('player')
+      } else if (msg === 'no_scope') {
+        setBrowseError('Re-connect Spotify to enable Liked Songs.')
       } else if (msg === 'network') {
         setBrowseError('Could not reach Spotify. Check your connection.')
       } else {
@@ -167,12 +172,24 @@ export default function MusicWidget() {
 
   const handlePlayTrack = async (trackUri: string) => {
     if (!selectedPlaylist) return
-    await playContext(selectedPlaylist.uri, trackUri)
+    if (selectedPlaylist.id === LIKED_SONGS_ID) {
+      // Play liked songs by URI list so they play in sequence
+      const idx = tracks.findIndex((t) => t.uri === trackUri)
+      await playTracks(tracks.map((t) => t.uri), idx >= 0 ? idx : 0)
+    } else {
+      await playContext(selectedPlaylist.uri, trackUri)
+    }
     setView('player')
   }
 
   const handlePlayPlaylist = async (playlist: SpotifyPlaylist) => {
-    await playContext(playlist.uri)
+    if (playlist.id === LIKED_SONGS_ID) {
+      // Fetch liked tracks then play as a list
+      const liked = await getLikedTracks()
+      if (liked.length > 0) await playTracks(liked.map((t) => t.uri))
+    } else {
+      await playContext(playlist.uri)
+    }
     setView('player')
   }
 
@@ -353,7 +370,12 @@ export default function MusicWidget() {
                     <div className="flex flex-col gap-1 max-h-56 overflow-y-auto no-scrollbar">
                       {playlists.map((pl) => (
                         <div key={pl.id} className="flex items-center gap-2.5 group">
-                          {pl.imageUrl ? (
+                          {/* Thumbnail */}
+                          {pl.id === LIKED_SONGS_ID ? (
+                            <div className="w-8 h-8 rounded-md bg-gradient-to-br from-[#4B0082] to-[#7B2FBE] flex-shrink-0 flex items-center justify-center">
+                              <Heart className="w-3.5 h-3.5 fill-white text-white" />
+                            </div>
+                          ) : pl.imageUrl ? (
                             <img src={pl.imageUrl} alt="" className="w-8 h-8 rounded-md flex-shrink-0 object-cover" />
                           ) : (
                             <div className="w-8 h-8 rounded-md bg-secondary flex-shrink-0 flex items-center justify-center">
@@ -362,7 +384,9 @@ export default function MusicWidget() {
                           )}
                           <button onClick={() => handleSelectPlaylist(pl)} className="flex-1 text-left min-w-0">
                             <p className="text-[12px] font-medium text-foreground truncate group-hover:text-[#1DB954] transition-colors">{pl.name}</p>
-                            <p className="text-[10px] text-muted-foreground/50">{pl.trackCount} tracks</p>
+                            {pl.trackCount > 0 && (
+                              <p className="text-[10px] text-muted-foreground/50">{pl.trackCount} songs</p>
+                            )}
                           </button>
                           <button
                             onClick={() => handlePlayPlaylist(pl)}
@@ -397,6 +421,8 @@ export default function MusicWidget() {
                         Tap to retry
                       </button>
                     </div>
+                  ) : tracks.length === 0 ? (
+                    <p className="text-[12px] text-muted-foreground/50 text-center py-2">No songs found</p>
                   ) : (
                     <div className="flex flex-col gap-1 max-h-56 overflow-y-auto no-scrollbar">
                       {tracks.map((t) => (
