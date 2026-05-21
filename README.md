@@ -203,7 +203,19 @@ In your Supabase project, open the SQL editor and run each file in `supabase/mig
 3. Deploy the `send-reminders` Edge Function from `supabase/functions/`.
 4. Enable pg_cron in your Supabase project and schedule it to run every minute.
 
-### 5. Start the dev server
+### 5. Set up voice input (optional)
+
+Voice task capture uses the browser's built-in **Web Speech API** — no API key, no backend, no extra configuration needed.
+
+To use it:
+1. Open the app in **Chrome, Edge, or Safari 15+** (Firefox is not supported).
+2. Tap the **microphone icon** in the quick-capture bar at the bottom of the screen.
+3. Grant microphone permission when the browser prompts — this is a one-time step.
+4. Speak your task naturally (e.g. *"Call the dentist tomorrow"*) and the app will fill in the title, due date, and urgency automatically.
+
+> **Note:** The mic icon is hidden on unsupported browsers — no broken UI for Firefox users.
+
+### 6. Start the dev server
 
 ```bash
 npm run dev
