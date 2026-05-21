@@ -25,6 +25,7 @@ export default function MusicWidget() {
   const [tracks, setTracks] = useState<SpotifyPlaylistTrack[]>([])
   const [selectedPlaylist, setSelectedPlaylist] = useState<SpotifyPlaylist | null>(null)
   const [browseLoading, setBrowseLoading] = useState(false)
+  const [browseError, setBrowseError] = useState('')
 
   // Access request state
   const [requestStatus, setRequestStatus] = useState<RequestStatus>('loading')
@@ -115,18 +116,35 @@ export default function MusicWidget() {
     setView('playlists')
     if (playlists.length > 0) return
     setBrowseLoading(true)
-    const data = await getUserPlaylists()
-    setPlaylists(data)
-    setBrowseLoading(false)
+    setBrowseError('')
+    try {
+      const data = await getUserPlaylists()
+      if (data.length === 0 && !isSpotifyConnected()) {
+        setConnected(false)
+        setView('player')
+        return
+      }
+      setPlaylists(data)
+    } catch {
+      setBrowseError('Failed to load playlists. Tap to retry.')
+    } finally {
+      setBrowseLoading(false)
+    }
   }, [playlists.length])
 
   const handleSelectPlaylist = async (playlist: SpotifyPlaylist) => {
     setSelectedPlaylist(playlist)
     setView('tracks')
     setBrowseLoading(true)
-    const data = await getPlaylistTracks(playlist.id)
-    setTracks(data)
-    setBrowseLoading(false)
+    setBrowseError('')
+    try {
+      const data = await getPlaylistTracks(playlist.id)
+      setTracks(data)
+    } catch {
+      setBrowseError('Failed to load tracks. Tap to go back and retry.')
+    } finally {
+      setBrowseLoading(false)
+    }
   }
 
   const handlePlayTrack = async (trackUri: string) => {
@@ -301,6 +319,8 @@ export default function MusicWidget() {
                   </div>
                   {browseLoading ? (
                     <p className="text-[12px] text-muted-foreground/50 text-center py-2">Loading…</p>
+                  ) : browseError ? (
+                    <p className="text-[12px] text-destructive/70 text-center py-2">{browseError}</p>
                   ) : playlists.length === 0 ? (
                     <p className="text-[12px] text-muted-foreground/50 text-center py-2">No playlists found</p>
                   ) : (
@@ -341,6 +361,8 @@ export default function MusicWidget() {
                   </div>
                   {browseLoading ? (
                     <p className="text-[12px] text-muted-foreground/50 text-center py-2">Loading…</p>
+                  ) : browseError ? (
+                    <p className="text-[12px] text-destructive/70 text-center py-2">{browseError}</p>
                   ) : (
                     <div className="flex flex-col gap-1 max-h-56 overflow-y-auto no-scrollbar">
                       {tracks.map((t) => (

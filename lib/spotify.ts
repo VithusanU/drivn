@@ -159,10 +159,19 @@ export function disconnectSpotify() {
 async function spotifyFetch(path: string, options?: RequestInit) {
   const token = await getSpotifyToken()
   if (!token) return null
-  return fetch(`https://api.spotify.com/v1${path}`, {
-    ...options,
-    headers: { Authorization: `Bearer ${token}`, ...options?.headers },
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10_000) // 10-second hard timeout
+  try {
+    return await fetch(`https://api.spotify.com/v1${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: { Authorization: `Bearer ${token}`, ...options?.headers },
+    })
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 // ── Playback ─────────────────────────────────────────────────────────────────
