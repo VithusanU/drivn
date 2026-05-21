@@ -117,14 +117,18 @@ export default function MusicWidget() {
     setBrowseError('')
     try {
       const data = await getUserPlaylists()
-      if (data.length === 0 && !isSpotifyConnected()) {
+      setPlaylists(data)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : ''
+      if (msg === 'unauthorized') {
+        disconnectSpotify()
         setConnected(false)
         setView('player')
-        return
+      } else if (msg === 'network') {
+        setBrowseError('Could not reach Spotify. Check your connection.')
+      } else {
+        setBrowseError('Could not load playlists. Tap to retry.')
       }
-      setPlaylists(data)
-    } catch {
-      setBrowseError('Failed to load playlists.')
     } finally {
       setBrowseLoading(false)
     }
@@ -145,8 +149,17 @@ export default function MusicWidget() {
     try {
       const data = await getPlaylistTracks(playlist.id)
       setTracks(data)
-    } catch {
-      setBrowseError('Failed to load tracks.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : ''
+      if (msg === 'unauthorized') {
+        disconnectSpotify()
+        setConnected(false)
+        setView('player')
+      } else if (msg === 'network') {
+        setBrowseError('Could not reach Spotify. Check your connection.')
+      } else {
+        setBrowseError('Could not load tracks. Tap to retry.')
+      }
     } finally {
       setBrowseLoading(false)
     }

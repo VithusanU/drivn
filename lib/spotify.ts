@@ -258,40 +258,46 @@ export interface SpotifyPlaylistTrack {
 
 export async function getUserPlaylists(): Promise<SpotifyPlaylist[]> {
   const res = await spotifyFetch('/me/playlists?limit=20')
-  if (!res?.ok) return []
+  if (!res) throw new Error('network')
+  if (res.status === 401) throw new Error('unauthorized')
+  if (!res.ok) throw new Error(`spotify_${res.status}`)
   const data = await res.json()
-  return (data.items ?? []).map((p: {
-    id: string; name: string; uri: string;
-    images: { url: string }[];
-    tracks: { total: number };
-  }) => ({
-    id: p.id,
-    name: p.name,
-    imageUrl: p.images?.[0]?.url ?? '',
-    trackCount: p.tracks.total,
-    uri: p.uri,
-  }))
+  return (data.items ?? [])
+    .filter(Boolean)
+    .map((p: {
+      id: string; name: string; uri: string;
+      images: { url: string }[] | null;
+      tracks: { total: number } | null;
+    }) => ({
+      id: p.id,
+      name: p.name,
+      imageUrl: p.images?.[0]?.url ?? '',
+      trackCount: p.tracks?.total ?? 0,
+      uri: p.uri,
+    }))
 }
 
 export async function getPlaylistTracks(playlistId: string): Promise<SpotifyPlaylistTrack[]> {
   const res = await spotifyFetch(
     `/playlists/${playlistId}/tracks?limit=50&fields=items(track(id,name,uri,duration_ms,artists,album(images)))`
   )
-  if (!res?.ok) return []
+  if (!res) throw new Error('network')
+  if (res.status === 401) throw new Error('unauthorized')
+  if (!res.ok) throw new Error(`spotify_${res.status}`)
   const data = await res.json()
   return (data.items ?? [])
-    .filter((i: { track: SpotifyPlaylistTrack | null }) => i.track)
+    .filter((i: { track: SpotifyPlaylistTrack | null }) => i?.track)
     .map((i: {
       track: {
         id: string; name: string; uri: string; duration_ms: number;
         artists: { name: string }[];
-        album: { images: { url: string }[] };
+        album: { images: { url: string }[] } | null;
       }
     }) => ({
       id: i.track.id,
       name: i.track.name,
-      artists: i.track.artists.map((a) => a.name).join(', '),
-      albumArt: i.track.album.images?.[0]?.url ?? '',
+      artists: i.track.artists?.map((a) => a.name).join(', ') ?? '',
+      albumArt: i.track.album?.images?.[0]?.url ?? '',
       uri: i.track.uri,
       durationMs: i.track.duration_ms,
     }))
