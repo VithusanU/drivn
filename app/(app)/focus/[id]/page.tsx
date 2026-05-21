@@ -111,6 +111,7 @@ export default function FocusModePage({ params }: FocusModePageProps) {
             <FocusTimer
               initialMinutes={task.estimated_minutes}
               onComplete={handleComplete}
+              taskTitle={task.title}
             />
           ) : (
             <div className={cn(
