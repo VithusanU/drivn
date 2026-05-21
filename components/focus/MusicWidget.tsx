@@ -112,9 +112,7 @@ export default function MusicWidget() {
     setView('player')
   }
 
-  const handleBrowse = useCallback(async () => {
-    setView('playlists')
-    if (playlists.length > 0) return
+  const fetchPlaylists = useCallback(async () => {
     setBrowseLoading(true)
     setBrowseError('')
     try {
@@ -126,22 +124,29 @@ export default function MusicWidget() {
       }
       setPlaylists(data)
     } catch {
-      setBrowseError('Failed to load playlists. Tap to retry.')
+      setBrowseError('Failed to load playlists.')
     } finally {
       setBrowseLoading(false)
     }
-  }, [playlists.length])
+  }, [])
+
+  const handleBrowse = useCallback(async () => {
+    setView('playlists')
+    if (playlists.length > 0) return
+    await fetchPlaylists()
+  }, [playlists.length, fetchPlaylists])
 
   const handleSelectPlaylist = async (playlist: SpotifyPlaylist) => {
     setSelectedPlaylist(playlist)
     setView('tracks')
+    setTracks([])
     setBrowseLoading(true)
     setBrowseError('')
     try {
       const data = await getPlaylistTracks(playlist.id)
       setTracks(data)
     } catch {
-      setBrowseError('Failed to load tracks. Tap to go back and retry.')
+      setBrowseError('Failed to load tracks.')
     } finally {
       setBrowseLoading(false)
     }
@@ -320,7 +325,15 @@ export default function MusicWidget() {
                   {browseLoading ? (
                     <p className="text-[12px] text-muted-foreground/50 text-center py-2">Loading…</p>
                   ) : browseError ? (
-                    <p className="text-[12px] text-destructive/70 text-center py-2">{browseError}</p>
+                    <div className="flex flex-col items-center gap-2 py-2">
+                      <p className="text-[12px] text-destructive/70 text-center">{browseError}</p>
+                      <button
+                        onClick={() => { setPlaylists([]); fetchPlaylists() }}
+                        className="text-[12px] text-[#1DB954] hover:underline"
+                      >
+                        Tap to retry
+                      </button>
+                    </div>
                   ) : playlists.length === 0 ? (
                     <p className="text-[12px] text-muted-foreground/50 text-center py-2">No playlists found</p>
                   ) : (
@@ -362,7 +375,15 @@ export default function MusicWidget() {
                   {browseLoading ? (
                     <p className="text-[12px] text-muted-foreground/50 text-center py-2">Loading…</p>
                   ) : browseError ? (
-                    <p className="text-[12px] text-destructive/70 text-center py-2">{browseError}</p>
+                    <div className="flex flex-col items-center gap-2 py-2">
+                      <p className="text-[12px] text-destructive/70 text-center">{browseError}</p>
+                      <button
+                        onClick={() => selectedPlaylist && handleSelectPlaylist(selectedPlaylist)}
+                        className="text-[12px] text-[#1DB954] hover:underline"
+                      >
+                        Tap to retry
+                      </button>
+                    </div>
                   ) : (
                     <div className="flex flex-col gap-1 max-h-56 overflow-y-auto no-scrollbar">
                       {tracks.map((t) => (
