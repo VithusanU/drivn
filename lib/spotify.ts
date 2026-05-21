@@ -160,10 +160,15 @@ export function disconnectSpotify() {
 // ── API helpers ──────────────────────────────────────────────────────────────
 
 async function spotifyFetch(path: string, options?: RequestInit) {
-  const token = await getSpotifyToken()
+  let token: string | null
+  try {
+    token = await getSpotifyToken()
+  } catch {
+    return null
+  }
   if (!token) return null
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 10_000) // 10-second hard timeout
+  const timeout = setTimeout(() => controller.abort(), 15_000) // 15-second hard timeout
   try {
     return await fetch(`https://api.spotify.com/v1${path}`, {
       ...options,
@@ -293,18 +298,20 @@ export async function getUserPlaylists(): Promise<SpotifyPlaylist[]> {
 }
 
 export async function getPlaylistTracks(playlistId: string): Promise<SpotifyPlaylistTrack[]> {
-  const res = await spotifyFetch(`/playlists/${playlistId}/tracks?limit=50`)
+  const res = await spotifyFetch(`/playlists/${playlistId}/tracks?limit=50&market=from_token`)
   if (!res) throw new Error('network')
   if (res.status === 401) throw new Error('unauthorized')
+  if (res.status === 403) throw new Error('forbidden')
   if (!res.ok) throw new Error(`spotify_${res.status}`)
   const data = await res.json()
   return (data.items ?? [])
-    .filter((i: { track: { id: string; type: string } | null }) => i?.track?.id && i.track.type === 'track')
+    .filter((i: { track: { id: string } | null }) => i?.track?.id)
     .map((i: {
       track: {
         id: string; name: string; uri: string; duration_ms: number;
         artists: { name: string }[] | null;
         album: { images: { url: string }[] } | null;
+        type?: string;
       }
     }) => ({
       id: i.track.id,
@@ -317,7 +324,7 @@ export async function getPlaylistTracks(playlistId: string): Promise<SpotifyPlay
 }
 
 export async function getLikedTracks(): Promise<SpotifyPlaylistTrack[]> {
-  const res = await spotifyFetch('/me/tracks?limit=50')
+  const res = await spotifyFetch('/me/tracks?limit=50&market=from_token')
   if (!res) throw new Error('network')
   if (res.status === 401) throw new Error('unauthorized')
   if (res.status === 403) throw new Error('no_scope')

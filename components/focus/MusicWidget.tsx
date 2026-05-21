@@ -154,12 +154,13 @@ export default function MusicWidget() {
       setTracks(data)
     } catch (err) {
       const msg = err instanceof Error ? err.message : ''
-      if (msg === 'unauthorized') {
+      if (msg === 'unauthorized' || msg === 'forbidden') {
+        // Token invalid or missing scope — force reconnect
         disconnectSpotify()
         setConnected(false)
         setView('player')
       } else if (msg === 'no_scope') {
-        setBrowseError('Re-connect Spotify to enable Liked Songs.')
+        setBrowseError('needs_reconnect')
       } else if (msg === 'network') {
         setBrowseError('Could not reach Spotify. Check your connection.')
       } else {
@@ -411,6 +412,18 @@ export default function MusicWidget() {
                   </div>
                   {browseLoading ? (
                     <p className="text-[12px] text-muted-foreground/50 text-center py-2">Loading…</p>
+                  ) : browseError === 'needs_reconnect' ? (
+                    <div className="flex flex-col items-center gap-2 py-2">
+                      <p className="text-[12px] text-muted-foreground/70 text-center">
+                        Reconnect Spotify to enable Liked Songs.
+                      </p>
+                      <button
+                        onClick={() => { disconnectSpotify(); setConnected(false); setView('player') }}
+                        className="text-[12px] font-medium text-[#1DB954] hover:underline"
+                      >
+                        Disconnect &amp; reconnect
+                      </button>
+                    </div>
                   ) : browseError ? (
                     <div className="flex flex-col items-center gap-2 py-2">
                       <p className="text-[12px] text-destructive/70 text-center">{browseError}</p>
