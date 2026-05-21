@@ -151,11 +151,11 @@ export default function MusicWidget() {
       const data = playlist.id === LIKED_SONGS_ID
         ? await getLikedTracks()
         : await getPlaylistTracks(playlist.id)
-      setTracks(data)
+      setTracks(data ?? [])
     } catch (err) {
       const msg = err instanceof Error ? err.message : ''
-      if (msg === 'unauthorized' || msg === 'forbidden') {
-        // Token invalid or missing scope — force reconnect
+      if (msg === 'unauthorized') {
+        // Token genuinely expired — must reconnect
         disconnectSpotify()
         setConnected(false)
         setView('player')
@@ -164,6 +164,7 @@ export default function MusicWidget() {
       } else if (msg === 'network') {
         setBrowseError('Could not reach Spotify. Check your connection.')
       } else {
+        // 403 or anything else — stay connected, just show error for this playlist
         setBrowseError('Could not load tracks. Tap to retry.')
       }
     } finally {

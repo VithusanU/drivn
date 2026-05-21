@@ -301,8 +301,7 @@ export async function getPlaylistTracks(playlistId: string): Promise<SpotifyPlay
   const res = await spotifyFetch(`/playlists/${playlistId}/tracks?limit=50&market=from_token`)
   if (!res) throw new Error('network')
   if (res.status === 401) throw new Error('unauthorized')
-  if (res.status === 403) throw new Error('forbidden')
-  if (!res.ok) throw new Error(`spotify_${res.status}`)
+  if (!res.ok) return []
   const data = await res.json()
   return (data.items ?? [])
     .filter((i: { track: { id: string } | null }) => i?.track?.id)
