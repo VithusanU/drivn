@@ -4,12 +4,12 @@ import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SkipBack, SkipForward, Play, Pause, Music, Unlink, ListMusic, ChevronLeft, Clock, CheckCircle, ExternalLink, Heart } from 'lucide-react'
 import {
-  isSpotifyConnected, startSpotifyAuth, disconnectSpotify,
+  startSpotifyAuth, disconnectSpotify,
   getUserPlaylists, getPlaylistTracks, getLikedTracks, playContext, playTracks,
   LIKED_SONGS_ID,
   type SpotifyPlaylist, type SpotifyPlaylistTrack,
 } from '@/lib/spotify'
-import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer'
+import { useSpotifyStore } from '@/stores/spotifyStore'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 
@@ -17,7 +17,17 @@ type View = 'player' | 'playlists' | 'tracks'
 type RequestStatus = 'none' | 'pending' | 'approved' | 'denied' | 'loading'
 
 export default function MusicWidget() {
-  const [connected, setConnected] = useState(false)
+  // Player state comes from the global store — persists across navigation
+  const connected = useSpotifyStore((s) => s.connected)
+  const setConnected = useSpotifyStore((s) => s.setConnected)
+  const track = useSpotifyStore((s) => s.track)
+  const ready = useSpotifyStore((s) => s.ready)
+  const toggle = useSpotifyStore((s) => s.toggle)
+  const next = useSpotifyStore((s) => s.next)
+  const prev = useSpotifyStore((s) => s.prev)
+  const destroyPlayer = useSpotifyStore((s) => s.destroyPlayer)
+  const initPlayer = useSpotifyStore((s) => s.initPlayer)
+
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [authError, setAuthError] = useState(false)
@@ -34,14 +44,8 @@ export default function MusicWidget() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
 
-  const { track, ready, toggle, next, prev } = useSpotifyPlayer(connected)
-
   useEffect(() => {
-    setConnected(isSpotifyConnected())
     checkRequestStatus()
-    const onFocus = () => setConnected(isSpotifyConnected())
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
   }, [])
 
   const checkRequestStatus = async () => {
@@ -102,6 +106,7 @@ export default function MusicWidget() {
     setLoading(false)
     if (ok) {
       setConnected(true)
+      initPlayer()
     } else {
       setAuthError(true)
     }
@@ -109,7 +114,7 @@ export default function MusicWidget() {
 
   const handleDisconnect = () => {
     disconnectSpotify()
-    setConnected(false)
+    destroyPlayer()
     setView('player')
   }
 
@@ -123,7 +128,7 @@ export default function MusicWidget() {
       const msg = err instanceof Error ? err.message : ''
       if (msg === 'unauthorized') {
         disconnectSpotify()
-        setConnected(false)
+        destroyPlayer()
         setView('player')
       } else if (msg === 'network') {
         setBrowseError('Could not reach Spotify. Check your connection.')
@@ -157,7 +162,7 @@ export default function MusicWidget() {
       if (msg === 'unauthorized') {
         // Token genuinely expired — must reconnect
         disconnectSpotify()
-        setConnected(false)
+        destroyPlayer()
         setView('player')
       } else if (msg === 'no_scope') {
         setBrowseError('needs_reconnect')
@@ -419,7 +424,7 @@ export default function MusicWidget() {
                         Reconnect Spotify to enable Liked Songs.
                       </p>
                       <button
-                        onClick={() => { disconnectSpotify(); setConnected(false); setView('player') }}
+                        onClick={() => { disconnectSpotify(); destroyPlayer(); setView('player') }}
                         className="text-[12px] font-medium text-[#1DB954] hover:underline"
                       >
                         Disconnect &amp; reconnect
