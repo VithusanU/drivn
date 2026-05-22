@@ -1,18 +1,58 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { Analytics } from '@/lib/analytics'
 
+/** Returns true when running inside LinkedIn's (or any social) in-app WebView */
+function detectInAppBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return (
+    /LinkedInApp/i.test(ua) ||           // LinkedIn iOS/Android native app
+    /FBAN|FBAV/i.test(ua) ||             // Facebook
+    /Instagram/i.test(ua) ||             // Instagram
+    (/\bwv\b/.test(ua) && /LinkedIn/i.test(ua)) // Android WebView opened by LinkedIn
+  )
+}
+
+/** Attempt to open the current URL in the device's real browser */
+function openInExternalBrowser() {
+  const url = window.location.href
+  const ua = navigator.userAgent || ''
+  // iOS: x-safari-https:// tells the OS to hand off to Safari
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    window.location.href = url.replace(/^https?:\/\//, 'x-safari-https://')
+    return
+  }
+  // Android: intent:// scheme opens in Chrome
+  if (/Android/i.test(ua)) {
+    const intentUrl =
+      'intent://' +
+      url.replace(/^https?:\/\//, '') +
+      '#Intent;scheme=https;package=com.android.chrome;end'
+    window.location.href = intentUrl
+    return
+  }
+  // Desktop fallback — just open a new tab
+  window.open(url, '_blank')
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isInApp, setIsInApp] = useState(false)
+  const [copied, setCopied] = useState(false)
   const supabase = createClient()
+
+  useEffect(() => {
+    setIsInApp(detectInAppBrowser())
+  }, [])
 
   const handleGoogleLogin = async () => {
     setLoading(true)
@@ -39,6 +79,128 @@ export default function LoginPage() {
     else { setSent(true); setLoading(false) }
   }
 
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard API not available — silent fail
+    }
+  }
+
+  // ── In-app browser wall ──────────────────────────────────────────────────
+  if (isInApp) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background px-6">
+        <motion.div
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="mb-10 text-center"
+        >
+          <Image src="/logo.png" alt="Drivn" width={120} height={120} className="rounded-2xl dark:invert mx-auto" priority />
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+          className="w-full max-w-sm rounded-2xl bg-card border border-border p-6 text-center"
+        >
+          <div className="text-3xl mb-3">🔒</div>
+          <h2 className="font-semibold text-foreground mb-2">Open in your browser</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Google sign-in doesn&apos;t work inside LinkedIn&apos;s browser.
+            Tap below to open Drivn in Safari or Chrome.
+          </p>
+
+          {/* Primary CTA */}
+          <button
+            onClick={openInExternalBrowser}
+            className={cn(
+              'w-full flex items-center justify-center gap-2 py-3 rounded-xl mb-3',
+              'bg-primary text-primary-foreground text-sm font-medium',
+              'transition-all hover:bg-primary/90 active:scale-[0.98]'
+            )}
+          >
+            <ExternalLinkIcon />
+            Open in Browser
+          </button>
+
+          {/* Copy link */}
+          <button
+            onClick={handleCopyLink}
+            className={cn(
+              'w-full flex items-center justify-center gap-2 py-3 rounded-xl mb-5',
+              'bg-secondary border border-border text-foreground text-sm font-medium',
+              'transition-all hover:bg-secondary/80 active:scale-[0.98]'
+            )}
+          >
+            {copied ? '✓ Link copied!' : 'Copy link to paste in browser'}
+          </button>
+
+          {/* LinkedIn tip */}
+          <p className="text-xs text-muted-foreground mb-5">
+            In the LinkedIn app, tap <span className="font-medium text-foreground">⋯</span> in the top right, then <span className="font-medium text-foreground">Open in browser</span>.
+          </p>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-[11px] text-muted-foreground">or sign in with email instead</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          {/* Email magic link — works in any browser/WebView */}
+          {sent ? (
+            <div className="py-3">
+              <div className="text-2xl mb-2">📬</div>
+              <p className="font-medium text-foreground text-sm">Check your email</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                We sent a magic link to <span className="text-foreground">{email}</span>
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleMagicLink} className="space-y-3">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                required
+                className={cn(
+                  'w-full px-4 py-3 rounded-xl text-sm',
+                  'bg-background border border-border text-foreground',
+                  'placeholder:text-muted-foreground/50',
+                  'outline-none focus:border-primary/50 transition-colors'
+                )}
+              />
+              <button
+                type="submit"
+                disabled={loading || !email}
+                className={cn(
+                  'w-full py-3 rounded-xl text-sm font-medium',
+                  'bg-primary text-primary-foreground',
+                  'transition-all hover:bg-primary/90 active:scale-[0.98]',
+                  'disabled:opacity-40'
+                )}
+              >
+                {loading ? 'Sending…' : 'Continue with email'}
+              </button>
+              {error && <p className="text-xs text-destructive text-center">{error}</p>}
+            </form>
+          )}
+        </motion.div>
+
+        <p className="text-xs text-muted-foreground/40 mt-8 text-center max-w-xs">
+          By continuing, you agree to our Terms of Service and Privacy Policy.
+        </p>
+      </div>
+    )
+  }
+
+  // ── Normal login page ────────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-6">
       {/* Logo / brand */}
@@ -141,6 +303,16 @@ export default function LoginPage() {
         By continuing, you agree to our Terms of Service and Privacy Policy.
       </p>
     </div>
+  )
+}
+
+function ExternalLinkIcon() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
   )
 }
 
