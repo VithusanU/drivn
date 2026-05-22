@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, Pencil } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
+import { useTimerStore } from '@/stores/timerStore'
 import { formatDueDate, cn } from '@/lib/utils'
 import { Analytics } from '@/lib/analytics'
 import CompletionScreen from '@/components/tasks/CompletionScreen'
@@ -49,6 +50,7 @@ export default function FocusModePage({ params }: FocusModePageProps) {
   const handleComplete = async () => {
     if (!task) return
     setCompleting(true)
+    useTimerStore.getState().clearTimer()
     Analytics.focusSessionCompleted(task.id)
     await completeTask(task.id)
     await updateStreak()
@@ -109,6 +111,7 @@ export default function FocusModePage({ params }: FocusModePageProps) {
         >
           {task?.estimated_minutes ? (
             <FocusTimer
+              taskId={task.id}
               initialMinutes={task.estimated_minutes}
               onComplete={handleComplete}
               taskTitle={task.title}
@@ -194,7 +197,7 @@ export default function FocusModePage({ params }: FocusModePageProps) {
             onClick={() => router.back()}
             className="w-full py-3 rounded-xl bg-secondary text-secondary-foreground/60 text-sm transition-colors hover:bg-secondary/80"
           >
-            Pause
+            Back to home
           </button>
         </motion.div>
       </div>

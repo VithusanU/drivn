@@ -6,6 +6,7 @@ import SideNav from '@/components/layout/SideNav'
 import { useTaskStore } from '@/stores/taskStore'
 import { useHabitStore } from '@/stores/habitStore'
 import { useUserStore } from '@/stores/userStore'
+import { useGlobalTimer } from '@/hooks/useGlobalTimer'
 import { Analytics } from '@/lib/analytics'
 import { getReminderTime } from '@/lib/notifications'
 
@@ -15,6 +16,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const fetchTodayCompletions = useHabitStore((s) => s.fetchTodayCompletions)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
   const fetchStreak = useUserStore((s) => s.fetchStreak)
+
+  useGlobalTimer()
 
   // Re-fetch completions when the tab becomes visible again — guards against the app
   // being left open overnight so yesterday's data doesn't bleed into a new day.

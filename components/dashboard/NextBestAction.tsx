@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Zap, SkipForward, Trash2 } from 'lucide-react'
+import { Zap, SkipForward, Trash2, Coffee, ArrowRight } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
+import { useTimerStore } from '@/stores/timerStore'
 import { getReasonLabel, formatEstimatedTime, getRecommendedTask } from '@/lib/engine/recommendation'
 import { formatDueDate, cn } from '@/lib/utils'
 import type { RecommendationReason } from '@/types'
@@ -17,11 +18,105 @@ const REASON_COLORS: Record<RecommendationReason, string> = {
   high_urgency: 'text-primary bg-primary/10 border-primary/25',
 }
 
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
 export default function NextBestAction() {
   const deleteTask = useTaskStore((s) => s.deleteTask)
   const tasks = useTaskStore((s) => s.tasks)
   const [skippedIds, setSkippedIds] = useState<string[]>([])
   const router = useRouter()
+
+  const timerTaskId = useTimerStore((s) => s.taskId)
+  const timerTaskTitle = useTimerStore((s) => s.taskTitle)
+  const timerSecondsLeft = useTimerStore((s) => s.secondsLeft)
+  const timerRunning = useTimerStore((s) => s.running)
+  const timerTimeUp = useTimerStore((s) => s.timeUp)
+  const breakActive = useTimerStore((s) => s.breakActive)
+  const breakSecondsLeft = useTimerStore((s) => s.breakSecondsLeft)
+
+  // When a timer is active, show the in-focus card instead of the normal recommendation
+  if (timerTaskId) {
+    const displaySeconds = breakActive ? breakSecondsLeft : timerSecondsLeft
+    const statusLabel = breakActive
+      ? 'On break'
+      : timerTimeUp
+        ? "Time's up"
+        : timerRunning
+          ? 'In focus'
+          : 'Paused'
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.25, ease: 'easeOut' }}
+        className={cn(
+          'relative rounded-2xl overflow-hidden cursor-pointer',
+          'bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460]',
+          'border border-primary/20 p-5'
+        )}
+        onClick={() => router.push(`/focus/${timerTaskId}`)}
+      >
+        {/* Ambient glow */}
+        <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-primary/8 pointer-events-none" />
+
+        {/* Status label */}
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-medium tracking-[0.15em] uppercase text-primary/60">
+            {statusLabel}
+          </p>
+          {breakActive && (
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/25">
+              <Coffee className="w-2.5 h-2.5 text-blue-400" />
+              <span className="text-[10px] text-blue-400 font-medium">Break</span>
+            </div>
+          )}
+        </div>
+
+        {/* Task title */}
+        <h2 className="text-xl font-medium text-white leading-snug mb-3">
+          {timerTaskTitle}
+        </h2>
+
+        {/* Timer display */}
+        <div className="flex items-center gap-2 mb-4">
+          <span className={cn(
+            'text-3xl font-medium tabular-nums',
+            breakActive
+              ? 'text-blue-400'
+              : timerTimeUp
+                ? 'text-destructive'
+                : 'text-white'
+          )}>
+            {timerTimeUp ? "Time's up!" : formatTime(displaySeconds)}
+          </span>
+          {!timerTimeUp && (
+            <span className="text-[11px] text-white/30">
+              {breakActive ? 'break remaining' : 'remaining'}
+            </span>
+          )}
+        </div>
+
+        {/* Resume button */}
+        <button
+          onClick={(e) => { e.stopPropagation(); router.push(`/focus/${timerTaskId}`) }}
+          className={cn(
+            'flex items-center justify-center gap-2',
+            'w-full py-3 rounded-xl text-[15px] font-medium',
+            'bg-primary text-primary-foreground',
+            'transition-all active:scale-[0.97] hover:bg-primary/90'
+          )}
+        >
+          <ArrowRight className="w-4 h-4" />
+          Resume
+        </button>
+      </motion.div>
+    )
+  }
 
   const filteredTasks = tasks.filter((t) => !skippedIds.includes(t.id))
   const recommendation = getRecommendedTask(filteredTasks)
