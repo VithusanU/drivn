@@ -247,12 +247,10 @@ Drivn is designed to be used from the home screen — push notifications on iOS 
 
 ---
 
-## Contributing
-
-This is a personal project, but issues and PRs are welcome. Please open an issue first to discuss larger changes.
-
----
-
 ## License
 
 MIT
+
+---
+
+*Built by [Vithusan Uruthirakumaran](https://github.com/VithusanU)*
