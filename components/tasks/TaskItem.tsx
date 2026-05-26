@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import { Circle, CheckCircle2, Trash2 } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
+import { useUndoStore } from '@/stores/undoStore'
 import { formatDueDate, cn } from '@/lib/utils'
 import type { Task } from '@/types'
 
@@ -24,7 +25,9 @@ export default function TaskItem({ task }: TaskItemProps) {
   const [showDelete, setShowDelete] = useState(false)
   const completeTask = useTaskStore((s) => s.completeTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
+  const undoDeleteTask = useTaskStore((s) => s.undoDeleteTask)
   const updateStreak = useUserStore((s) => s.updateStreak)
+  const showUndo = useUndoStore((s) => s.show)
   const router = useRouter()
 
   const handleComplete = async (e: React.MouseEvent) => {
@@ -38,6 +41,7 @@ export default function TaskItem({ task }: TaskItemProps) {
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation()
     await deleteTask(task.id)
+    showUndo(`"${task.title}" deleted`, () => undoDeleteTask(task.id, task))
   }
 
   const isDueDateOverdue =

@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { createClient } from '@/lib/supabase/client'
+import { saveAccount } from '@/lib/savedAccounts'
 import type { UserStore, UserProfile, UserStreak } from '@/types'
 
 export const useUserStore = create<UserStore>((set) => ({
@@ -20,7 +21,10 @@ export const useUserStore = create<UserStore>((set) => ({
       .eq('id', user.id)
       .single()
 
-    if (data) set({ profile: data as UserProfile })
+    if (data) {
+      set({ profile: data as UserProfile })
+      saveAccount({ email: data.email, name: data.full_name, avatar_url: data.avatar_url })
+    }
   },
 
   fetchStreak: async () => {

@@ -144,6 +144,7 @@ export interface TaskStore {
   updateTask: (id: string, input: UpdateTaskInput) => Promise<void>
   completeTask: (id: string) => Promise<void>
   deleteTask: (id: string) => Promise<void>
+  undoDeleteTask: (id: string, task: Task) => Promise<void>
   getRecommendedTask: () => RecommendedTask | null
   getTasksByGroup: () => Record<TaskGroup, Task[]>
 }
@@ -158,6 +159,7 @@ export interface HabitStore {
   toggleHabit: (habitId: string, details?: HabitCompletionDetails) => Promise<void>
   createHabit: (input: CreateHabitInput) => Promise<void>
   deleteHabit: (id: string) => Promise<void>
+  undoDeleteHabit: (id: string, habit: Habit) => Promise<void>
   updateHabitPriority: (id: string, priority: HabitPriority) => Promise<void>
   getHabitsWithStreaks: () => HabitWithStreak[]
 }

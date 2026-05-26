@@ -52,6 +52,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     setIsInApp(detectInAppBrowser())
+    const params = new URLSearchParams(window.location.search)
+    const prefill = params.get('email')
+    if (prefill) setEmail(prefill)
   }, [])
 
   const handleGoogleLogin = async () => {

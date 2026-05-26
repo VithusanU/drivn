@@ -127,6 +127,20 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
     set((state) => ({ habits: state.habits.filter((h) => h.id !== id) }))
   },
 
+  undoDeleteHabit: async (id: string, habit) => {
+    const supabase = createClient()
+    await supabase.from('habits').update({ active: true }).eq('id', id)
+    set((state) => {
+      const restored = { ...habit, active: true }
+      const updated = [...state.habits, restored]
+      updated.sort((a, b) => {
+        if (a.priority === b.priority) return a.order_index - b.order_index
+        return a.priority === 'essential' ? -1 : 1
+      })
+      return { habits: updated }
+    })
+  },
+
   updateHabitPriority: async (id: string, priority: HabitPriority) => {
     const supabase = createClient()
     await supabase.from('habits').update({ priority }).eq('id', id)

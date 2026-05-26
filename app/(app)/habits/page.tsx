@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, X, Pencil } from 'lucide-react'
 import { useHabitStore } from '@/stores/habitStore'
+import { useUndoStore } from '@/stores/undoStore'
 import HabitCard from '@/components/habits/HabitCard'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
@@ -28,8 +29,10 @@ export default function HabitsPage() {
   const [target, setTarget] = useState<number>(8)
   const createHabit = useHabitStore((s) => s.createHabit)
   const deleteHabit = useHabitStore((s) => s.deleteHabit)
+  const undoDeleteHabit = useHabitStore((s) => s.undoDeleteHabit)
   const updateHabitPriority = useHabitStore((s) => s.updateHabitPriority)
   const getHabitsWithStreaks = useHabitStore((s) => s.getHabitsWithStreaks)
+  const showUndo = useUndoStore((s) => s.show)
   // Subscribe to raw data so this component re-renders when habits or completions change
   useHabitStore((s) => s.habits)
   useHabitStore((s) => s.completions)
@@ -121,7 +124,11 @@ export default function HabitsPage() {
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
                       exit={{ scale: 0 }}
-                      onClick={() => deleteHabit(habit.id)}
+                      onClick={() => {
+                        const { completedToday, currentStreak, lastDetails, lastCompletedDate, ...habitBase } = habit
+                        deleteHabit(habit.id)
+                        showUndo(`"${habit.title}" deleted`, () => undoDeleteHabit(habit.id, habitBase))
+                      }}
                       className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center shadow-md z-10"
                     >
                       <X className="w-3.5 h-3.5" />

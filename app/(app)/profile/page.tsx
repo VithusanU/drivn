@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { format } from 'date-fns'
-import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle } from 'lucide-react'
+import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/stores/userStore'
 import { cn } from '@/lib/utils'
@@ -12,6 +12,8 @@ import {
   subscribeToPush, unsubscribeFromPush, isSubscribed,
   saveReminderTime, getReminderTime,
 } from '@/lib/notifications'
+import { getSavedAccounts, removeAccount } from '@/lib/savedAccounts'
+import type { SavedAccount } from '@/lib/savedAccounts'
 
 export default function ProfilePage() {
   const profile = useUserStore((s) => s.profile)
@@ -24,17 +26,36 @@ export default function ProfilePage() {
   const [showTimePicker, setShowTimePicker] = useState(false)
   const [savingTime, setSavingTime] = useState(false)
   const [openGuide, setOpenGuide] = useState<string | null>(null)
+  const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([])
 
   useEffect(() => {
     setMounted(true)
     isSubscribed().then(setNotifEnabled)
     getReminderTime().then((t) => { if (t) setReminderTime(t.slice(0, 5)) })
+    setSavedAccounts(getSavedAccounts())
   }, [])
 
   const handleSignOut = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')
+  }
+
+  const handleSwitchAccount = async (account: SavedAccount) => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push(`/login?email=${encodeURIComponent(account.email)}`)
+  }
+
+  const handleAddAccount = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
+  const handleRemoveAccount = (email: string) => {
+    removeAccount(email)
+    setSavedAccounts(getSavedAccounts())
   }
 
   const handleToggleNotifications = async () => {
@@ -231,6 +252,66 @@ export default function ProfilePage() {
           Enable notifications to set a daily reminder
         </p>
       )}
+
+      {/* Accounts */}
+      <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3 mt-8">
+        Accounts
+      </p>
+      <div className="rounded-2xl border border-border overflow-hidden divide-y divide-border/50">
+        {savedAccounts.map((account) => {
+          const isCurrent = account.email === profile?.email
+          const acctInitials = account.name
+            ?.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+            ?? account.email[0].toUpperCase()
+          return (
+            <div key={account.email} className="flex items-center gap-3 px-4 py-3.5">
+              <div className={cn(
+                'w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center',
+                'bg-primary/15 text-primary text-xs font-medium'
+              )}>
+                {account.avatar_url
+                  ? <img src={account.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                  : acctInitials}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-foreground truncate">{account.name ?? account.email}</p>
+                <p className="text-[11px] text-muted-foreground/60 truncate">{account.email}</p>
+              </div>
+              {isCurrent ? (
+                <span className="text-xs text-drivn-green font-medium shrink-0">Active</span>
+              ) : (
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    onClick={() => handleSwitchAccount(account)}
+                    className="text-xs text-primary font-medium hover:text-primary/80 transition-colors"
+                  >
+                    Switch
+                  </button>
+                  <button
+                    onClick={() => handleRemoveAccount(account.email)}
+                    className="text-xs text-muted-foreground/40 hover:text-destructive/60 transition-colors"
+                    aria-label="Remove account"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+        <button
+          onClick={handleAddAccount}
+          className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors"
+        >
+          <div className={cn(
+            'w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center',
+            'border border-dashed border-border/60'
+          )}>
+            <Plus className="w-3.5 h-3.5 text-muted-foreground/50" />
+          </div>
+          <span>Add account</span>
+        </button>
+      </div>
 
       {/* Help & Setup Guide */}
       <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3 mt-8">

@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import BottomNav from '@/components/layout/BottomNav'
 import SideNav from '@/components/layout/SideNav'
+import UndoToast from '@/components/ui/UndoToast'
 import { useTaskStore } from '@/stores/taskStore'
 import { useHabitStore } from '@/stores/habitStore'
 import { useUserStore } from '@/stores/userStore'
@@ -76,6 +77,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Mobile bottom nav */}
       <BottomNav />
+
+      <UndoToast />
     </div>
   )
 }

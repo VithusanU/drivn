@@ -109,6 +109,12 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     if (task) Analytics.taskAbandoned(task.urgency)
   },
 
+  undoDeleteTask: async (id: string, task) => {
+    const supabase = createClient()
+    await supabase.from('tasks').update({ status: 'active' }).eq('id', id)
+    set((state) => ({ tasks: [{ ...task, status: 'active' }, ...state.tasks] }))
+  },
+
   getRecommendedTask: (): RecommendedTask | null => {
     return getRecommendedTask(get().tasks)
   },
