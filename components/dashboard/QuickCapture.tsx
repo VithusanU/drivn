@@ -77,6 +77,7 @@ export default function QuickCapture() {
 
   const [urgency, setUrgency] = useState<TaskUrgency>('medium')
   const [dueDate, setDueDate] = useState<string>('')
+  const [dueTime, setDueTime] = useState<string>('')
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null)
 
   const [voiceState, setVoiceState] = useState<VoiceState>('idle')
@@ -94,6 +95,7 @@ export default function QuickCapture() {
   const resetOptions = () => {
     setUrgency('medium')
     setDueDate('')
+    setDueTime('')
     setEstimatedMinutes(null)
   }
 
@@ -106,6 +108,7 @@ export default function QuickCapture() {
       title: trimmed,
       urgency,
       due_date: dueDate || null,
+      due_time: dueTime || null,
       estimated_minutes: estimatedMinutes,
     })
     setValue('')
@@ -173,7 +176,11 @@ export default function QuickCapture() {
         setUrgency(parsed.urgency)
         if (parsed.dueDate) {
           setDueDate(parsed.dueDate)
-          setExpanded(true)   // reveal options panel so user can see what was parsed
+          setExpanded(true)
+        }
+        if (parsed.dueTime) {
+          setDueTime(parsed.dueTime)
+          setExpanded(true)
         }
       }
     }
@@ -284,6 +291,38 @@ export default function QuickCapture() {
                   )}
                 />
               </div>
+
+              {/* Due time — only shown when a date is set */}
+              {dueDate && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground/60">
+                      Due time <span className="normal-case font-normal">(optional)</span>
+                    </p>
+                    {dueTime && (
+                      <button
+                        onClick={() => setDueTime('')}
+                        className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="time"
+                    value={dueTime}
+                    onChange={(e) => setDueTime(e.target.value)}
+                    className={cn(
+                      'w-full px-3 py-2.5 rounded-xl border text-[12px] transition-all',
+                      'bg-background text-foreground/70 outline-none',
+                      dueTime
+                        ? 'border-primary/40 text-primary'
+                        : 'border-border/50 text-muted-foreground/40',
+                      '[color-scheme:dark]'
+                    )}
+                  />
+                </div>
+              )}
 
               {/* Time estimate */}
               <div className="space-y-3">

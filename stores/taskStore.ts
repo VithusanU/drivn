@@ -42,6 +42,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         description: input.description ?? null,
         urgency: input.urgency ?? 'medium',
         due_date: input.due_date ?? null,
+        due_time: input.due_time ?? null,
         estimated_minutes: input.estimated_minutes ?? null,
       })
       .select()

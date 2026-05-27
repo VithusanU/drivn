@@ -23,26 +23,46 @@ function scoreTask(task: Task, now: Date): { score: number; reason: Recommendati
   let score = 0
   let reason: RecommendationReason = 'high_urgency'
 
-  const dueDate = task.due_date ? parseISO(task.due_date) : null
   const lastEngaged = task.last_engaged_at ? parseISO(task.last_engaged_at) : null
 
-  // Overdue
-  if (dueDate && isBefore(dueDate, now)) {
-    score += WEIGHTS.overdue
-    reason = 'overdue'
-    // Boost for how many hours overdue (capped at 24h worth)
-    const hoursOverdue = Math.min((now.getTime() - dueDate.getTime()) / 3_600_000, 24)
-    score += hoursOverdue * 10
-  }
-  // Due today (within next 8 hours)
-  else if (dueDate && isBefore(dueDate, addHours(now, 8))) {
-    score += WEIGHTS.due_today
-    reason = 'due_today'
-  }
-  // Due soon (within 24h)
-  else if (dueDate && isBefore(dueDate, addHours(now, 24))) {
-    score += WEIGHTS.due_soon
-    reason = 'due_soon'
+  if (task.due_date) {
+    const hasTime = !!task.due_time
+    const effectiveDue = hasTime
+      ? parseISO(`${task.due_date}T${task.due_time}`)
+      : parseISO(task.due_date)
+
+    if (hasTime) {
+      // Precise time-aware scoring: compare exact datetime
+      if (isBefore(effectiveDue, now)) {
+        score += WEIGHTS.overdue
+        reason = 'overdue'
+        const hoursOverdue = Math.min((now.getTime() - effectiveDue.getTime()) / 3_600_000, 24)
+        score += hoursOverdue * 10
+      } else {
+        const minsUntil = (effectiveDue.getTime() - now.getTime()) / 60_000
+        score += WEIGHTS.due_today
+        reason = 'due_today'
+        // Tiered boost: closer deadline = higher priority
+        if (minsUntil <= 60) score += 300
+        else if (minsUntil <= 120) score += 200
+        else if (minsUntil <= 240) score += 100
+      }
+    } else {
+      // Date-only: overdue only if before today (not just before now)
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      if (isBefore(effectiveDue, todayStart)) {
+        score += WEIGHTS.overdue
+        reason = 'overdue'
+        const hoursOverdue = Math.min((now.getTime() - effectiveDue.getTime()) / 3_600_000, 24)
+        score += hoursOverdue * 10
+      } else if (isBefore(effectiveDue, addHours(now, 8))) {
+        score += WEIGHTS.due_today
+        reason = 'due_today'
+      } else if (isBefore(effectiveDue, addHours(now, 24))) {
+        score += WEIGHTS.due_soon
+        reason = 'due_soon'
+      }
+    }
   }
 
   // Urgency modifier
@@ -72,8 +92,11 @@ export function getRecommendedTask(tasks: Task[]): RecommendedTask | null {
     return { task, score, reason }
   })
 
-  // Sort descending by score
-  scored.sort((a, b) => b.score - a.score)
+  // Sort descending by score; tiebreak oldest-first (FIFO)
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    return parseISO(a.task.created_at).getTime() - parseISO(b.task.created_at).getTime()
+  })
 
   const best = scored[0]
   if (!best) return null
@@ -100,32 +123,39 @@ export function groupTasks(tasks: Task[]): Record<TaskGroup, Task[]> {
   for (const task of tasks) {
     if (task.status !== 'active') continue
 
-    const dueDate = task.due_date ? parseISO(task.due_date) : null
+    const effectiveDue = task.due_date
+      ? (task.due_time ? parseISO(`${task.due_date}T${task.due_time}`) : parseISO(task.due_date))
+      : null
 
-    if (!dueDate) {
+    if (!effectiveDue) {
       groups.later.push(task)
       continue
     }
 
-    if (isBefore(dueDate, in24h)) {
+    if (isBefore(effectiveDue, in24h)) {
       groups.now.push(task)
-    } else if (isBefore(dueDate, in3days)) {
+    } else if (isBefore(effectiveDue, in3days)) {
       groups.soon.push(task)
     } else {
       groups.later.push(task)
     }
   }
 
-  // Sort each group by urgency then due date
+  // Sort each group: urgency first, then effective due datetime, then FIFO
   const urgencyOrder: Record<Task['urgency'], number> = { high: 0, medium: 1, low: 2 }
+
+  const getEffectiveMs = (t: Task): number => {
+    if (!t.due_date) return Infinity
+    return (t.due_time ? parseISO(`${t.due_date}T${t.due_time}`) : parseISO(t.due_date)).getTime()
+  }
 
   for (const key of Object.keys(groups) as TaskGroup[]) {
     groups[key].sort((a, b) => {
       const urgencyDiff = urgencyOrder[a.urgency] - urgencyOrder[b.urgency]
       if (urgencyDiff !== 0) return urgencyDiff
-      if (!a.due_date) return 1
-      if (!b.due_date) return -1
-      return parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime()
+      const timeDiff = getEffectiveMs(a) - getEffectiveMs(b)
+      if (timeDiff !== 0) return timeDiff
+      return parseISO(a.created_at).getTime() - parseISO(b.created_at).getTime()
     })
   }
 

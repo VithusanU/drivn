@@ -12,6 +12,7 @@ export interface ParsedVoiceTask {
   title: string
   urgency: TaskUrgency
   dueDate: string | null
+  dueTime: string | null
   estimatedMinutes: number | null
 }
 
@@ -124,6 +125,34 @@ const STRIP_PATTERNS: RegExp[] = [
   /\bcreate\s+(a\s+)?task\s+(to\s+)?/gi,
 ]
 
+// ── Time-of-day patterns ──────────────────────────────────────────────────────
+
+function parseTimeOfDay(text: string): string | null {
+  // "at noon" / "at midnight"
+  if (/\b(?:at\s+)?noon\b/i.test(text)) return '12:00'
+  if (/\b(?:at\s+)?midnight\b/i.test(text)) return '00:00'
+
+  // "at 3pm", "by 2:30pm", "at 9 am", "at 10:15"
+  const match = text.match(/\b(?:at|by)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i)
+  if (match) {
+    let h = parseInt(match[1])
+    const m = match[2] ? parseInt(match[2]) : 0
+    const period = match[3]?.toLowerCase()
+    if (period === 'pm' && h < 12) h += 12
+    if (period === 'am' && h === 12) h = 0
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+  }
+
+  return null
+}
+
+const TIME_STRIP_PATTERNS: RegExp[] = [
+  /\b(?:at|by)\s+noon\b/gi,
+  /\b(?:at|by)\s+midnight\b/gi,
+  /\b(?:at|by)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/gi,
+  /\b(?:at|by)\s+\d{1,2}(?::\d{2})?\b/gi,
+]
+
 // ── Main parser ───────────────────────────────────────────────────────────────
 
 export function parseVoiceInput(transcript: string): ParsedVoiceTask {
@@ -144,9 +173,12 @@ export function parseVoiceInput(transcript: string): ParsedVoiceTask {
     }
   }
 
-  // 3. Extract clean title by stripping time/urgency/filler phrases
+  // 3. Detect due time ("at 3pm", "by 2:30", "at noon")
+  const dueTime = parseTimeOfDay(text)
+
+  // 4. Extract clean title by stripping date/time/urgency/filler phrases
   let title = text
-  for (const pattern of STRIP_PATTERNS) {
+  for (const pattern of [...TIME_STRIP_PATTERNS, ...STRIP_PATTERNS]) {
     title = title.replace(pattern, ' ')
   }
   title = title.replace(/\s+/g, ' ').trim()
@@ -156,7 +188,7 @@ export function parseVoiceInput(transcript: string): ParsedVoiceTask {
     title = title.charAt(0).toUpperCase() + title.slice(1)
   }
 
-  return { title, urgency, dueDate, estimatedMinutes: null }
+  return { title, urgency, dueDate, dueTime, estimatedMinutes: null }
 }
 
 // ── Browser support detection ─────────────────────────────────────────────────

@@ -84,7 +84,7 @@ export default function TaskItem({ task }: TaskItemProps) {
             'text-[11px] mt-0.5',
             isDueDateOverdue ? 'text-destructive/70' : 'text-muted-foreground/50'
           )}>
-            {formatDueDate(task.due_date)}
+            {formatDueDate(task.due_date, task.due_time)}
           </p>
         )}
       </div>

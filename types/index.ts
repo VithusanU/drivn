@@ -24,6 +24,7 @@ export interface Task {
   status: TaskStatus
   urgency: TaskUrgency
   due_date: string | null
+  due_time: string | null
   estimated_minutes: number | null
   created_at: string
   updated_at: string
@@ -36,6 +37,7 @@ export interface CreateTaskInput {
   description?: string
   urgency?: TaskUrgency
   due_date?: string | null
+  due_time?: string | null
   estimated_minutes?: number | null
 }
 
@@ -44,6 +46,7 @@ export interface UpdateTaskInput {
   description?: string
   urgency?: TaskUrgency
   due_date?: string | null
+  due_time?: string | null
   estimated_minutes?: number | null
   status?: TaskStatus
 }

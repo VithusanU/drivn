@@ -74,6 +74,7 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
   const [title, setTitle] = useState(task.title)
   const [urgency, setUrgency] = useState<TaskUrgency>(task.urgency)
   const [dueDate, setDueDate] = useState<string>(task.due_date ?? '')
+  const [dueTime, setDueTime] = useState<string>(task.due_time ?? '')
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(task.estimated_minutes ?? null)
   const [saving, setSaving] = useState(false)
 
@@ -86,6 +87,7 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
       title: title.trim(),
       urgency,
       due_date: dueDate || null,
+      due_time: dueTime || null,
       estimated_minutes: estimatedMinutes,
     })
     setSaving(false)
@@ -189,6 +191,36 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
                 )}
               />
             </div>
+
+            {/* Due time — only shown when a date is set */}
+            {dueDate && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground/60">
+                    Due time <span className="normal-case font-normal">(optional)</span>
+                  </p>
+                  {dueTime && (
+                    <button
+                      onClick={() => setDueTime('')}
+                      className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="time"
+                  value={dueTime}
+                  onChange={(e) => setDueTime(e.target.value)}
+                  className={cn(
+                    'w-full px-3 py-2.5 rounded-xl border text-[12px] transition-all',
+                    'bg-background text-foreground/70 outline-none',
+                    dueTime ? 'border-primary/40 text-primary' : 'border-border/50 text-muted-foreground/40',
+                    '[color-scheme:dark]'
+                  )}
+                />
+              </div>
+            )}
 
             {/* Time estimate */}
             <div className="space-y-3">

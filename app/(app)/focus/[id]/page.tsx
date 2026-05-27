@@ -151,7 +151,7 @@ export default function FocusModePage({ params }: FocusModePageProps) {
           )}
           {task?.due_date && (
             <span className="text-[11px] px-3 py-1 rounded-full bg-muted border border-border text-muted-foreground">
-              {formatDueDate(task.due_date)}
+              {formatDueDate(task.due_date, task.due_time)}
             </span>
           )}
           {task?.estimated_minutes && (

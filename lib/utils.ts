@@ -6,13 +6,21 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatDueDate(dueDateStr: string | null): string {
+function formatTime12h(time: string): string {
+  const [h, m] = time.split(':').map(Number)
+  const period = h >= 12 ? 'PM' : 'AM'
+  const hour = h % 12 || 12
+  return m === 0 ? `${hour}${period}` : `${hour}:${String(m).padStart(2, '0')}${period}`
+}
+
+export function formatDueDate(dueDateStr: string | null, dueTimeStr?: string | null): string {
   if (!dueDateStr) return 'No deadline'
   const date = parseISO(dueDateStr)
-  if (isPast(date) && !isToday(date)) return `Overdue · ${format(date, 'MMM d')}`
-  if (isToday(date)) return 'Due today'
-  if (isTomorrow(date)) return 'Due tomorrow'
-  return `Due ${format(date, 'MMM d')}`
+  const timeSuffix = dueTimeStr ? ` · ${formatTime12h(dueTimeStr)}` : ''
+  if (isPast(date) && !isToday(date)) return `Overdue · ${format(date, 'MMM d')}${timeSuffix}`
+  if (isToday(date)) return `Due today${timeSuffix}`
+  if (isTomorrow(date)) return `Due tomorrow${timeSuffix}`
+  return `Due ${format(date, 'MMM d')}${timeSuffix}`
 }
 
 export function getGreeting(name: string | null): string {
