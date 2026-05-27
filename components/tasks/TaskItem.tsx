@@ -3,10 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Circle, CheckCircle2, Trash2 } from 'lucide-react'
+import { Circle, CheckCircle2, Trash2, Lock } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
 import { useUndoStore } from '@/stores/undoStore'
+import { isTaskBlocked } from '@/lib/engine/recommendation'
 import { formatDueDate, cn } from '@/lib/utils'
 import type { Task } from '@/types'
 
@@ -22,13 +23,19 @@ const URGENCY_DOT: Record<Task['urgency'], string> = {
 
 export default function TaskItem({ task }: TaskItemProps) {
   const [completing, setCompleting] = useState(false)
-  const [showDelete, setShowDelete] = useState(false)
   const completeTask = useTaskStore((s) => s.completeTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
   const undoDeleteTask = useTaskStore((s) => s.undoDeleteTask)
+  const tasks = useTaskStore((s) => s.tasks)
   const updateStreak = useUserStore((s) => s.updateStreak)
   const showUndo = useUndoStore((s) => s.show)
   const router = useRouter()
+
+  const blocked = isTaskBlocked(task, tasks)
+  const blockerTask = blocked ? tasks.find((t) => t.id === task.blocked_by) : null
+
+  const isDueDateOverdue =
+    task.due_date && new Date(task.due_date) < new Date() && !isToday(new Date(task.due_date))
 
   const handleComplete = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -44,55 +51,64 @@ export default function TaskItem({ task }: TaskItemProps) {
     showUndo(`"${task.title}" deleted`, () => undoDeleteTask(task.id, task))
   }
 
-  const isDueDateOverdue =
-    task.due_date && new Date(task.due_date) < new Date() && !isToday(new Date(task.due_date))
-
   return (
     <motion.div
       layout
       initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: completing ? 0.4 : 1, y: 0 }}
+      animate={{ opacity: completing ? 0.4 : blocked ? 0.5 : 1, y: 0 }}
       exit={{ opacity: 0, x: -20 }}
       transition={{ duration: 0.15 }}
       className={cn(
         'flex items-center gap-3 px-3.5 py-3 rounded-xl',
         'bg-card/50 border border-border/50',
         'cursor-pointer group transition-colors',
-        'hover:bg-card hover:border-border active:scale-[0.99]'
+        blocked
+          ? 'opacity-50 hover:opacity-70'
+          : 'hover:bg-card hover:border-border active:scale-[0.99]'
       )}
       onClick={() => router.push(`/focus/${task.id}`)}
     >
-      {/* Checkbox */}
-      <button
-        onClick={handleComplete}
-        disabled={completing}
-        className="flex-shrink-0 touch-target flex items-center justify-center"
-        aria-label="Complete task"
-      >
-        {completing ? (
-          <CheckCircle2 className="w-[18px] h-[18px] text-drivn-green animate-pop-in" />
-        ) : (
-          <Circle className="w-[18px] h-[18px] text-muted-foreground/30 hover:text-drivn-green transition-colors" />
-        )}
-      </button>
+      {/* Checkbox — hidden for blocked tasks */}
+      {blocked ? (
+        <div className="flex-shrink-0 w-[18px] h-[18px] flex items-center justify-center">
+          <Lock className="w-3.5 h-3.5 text-muted-foreground/40" />
+        </div>
+      ) : (
+        <button
+          onClick={handleComplete}
+          disabled={completing}
+          className="flex-shrink-0 touch-target flex items-center justify-center"
+          aria-label="Complete task"
+        >
+          {completing ? (
+            <CheckCircle2 className="w-[18px] h-[18px] text-drivn-green animate-pop-in" />
+          ) : (
+            <Circle className="w-[18px] h-[18px] text-muted-foreground/30 hover:text-drivn-green transition-colors" />
+          )}
+        </button>
+      )}
 
       {/* Content */}
       <div className="flex-1 min-w-0">
         <p className="text-[14px] text-foreground/80 truncate">{task.title}</p>
-        {task.due_date && (
+        {blocked && blockerTask ? (
+          <p className="text-[11px] mt-0.5 text-muted-foreground/40 truncate">
+            Waiting on: {blockerTask.title}
+          </p>
+        ) : task.due_date ? (
           <p className={cn(
             'text-[11px] mt-0.5',
             isDueDateOverdue ? 'text-destructive/70' : 'text-muted-foreground/50'
           )}>
             {formatDueDate(task.due_date, task.due_time)}
           </p>
-        )}
+        ) : null}
       </div>
 
       {/* Priority dot */}
       <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', URGENCY_DOT[task.urgency])} />
 
-      {/* Delete (shows on hover/long-press) */}
+      {/* Delete (shows on hover) */}
       <button
         onClick={handleDelete}
         className={cn(

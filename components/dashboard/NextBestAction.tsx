@@ -175,7 +175,7 @@ export default function NextBestAction() {
           </span>
           {task.due_date && (
             <span className="text-[11px] font-medium px-2.5 py-1 rounded-full border border-primary/20 text-primary/70 bg-primary/8">
-              {formatDueDate(task.due_date)}
+              {formatDueDate(task.due_date, task.due_time)}
             </span>
           )}
           {task.estimated_minutes && (

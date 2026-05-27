@@ -18,6 +18,17 @@ const URGENCY_SCORES: Record<Task['urgency'], number> = {
   low: WEIGHTS.low_urgency,
 }
 
+// ─── Dependency helpers ───────────────────────────────────────────────────────
+
+/**
+ * A task is "blocked" when its blocker task still exists and is active.
+ * Completed or deleted blockers automatically unblock downstream tasks.
+ */
+export function isTaskBlocked(task: Task, allTasks: Task[]): boolean {
+  if (!task.blocked_by) return false
+  return allTasks.some((t) => t.id === task.blocked_by && t.status === 'active')
+}
+
 // ─── Score a single task ──────────────────────────────────────────────────────
 function scoreTask(task: Task, now: Date): { score: number; reason: RecommendationReason } {
   let score = 0
@@ -82,7 +93,10 @@ function scoreTask(task: Task, now: Date): { score: number; reason: Recommendati
 
 // ─── Main recommendation function ────────────────────────────────────────────
 export function getRecommendedTask(tasks: Task[]): RecommendedTask | null {
-  const activeTasks = tasks.filter((t) => t.status === 'active')
+  // Only consider active, non-blocked tasks for the NBA
+  const activeTasks = tasks.filter(
+    (t) => t.status === 'active' && !isTaskBlocked(t, tasks)
+  )
   if (activeTasks.length === 0) return null
 
   const now = new Date()
@@ -106,6 +120,37 @@ export function getRecommendedTask(tasks: Task[]): RecommendedTask | null {
     reason: best.reason,
     score: best.score,
   }
+}
+
+// ─── Quick Wins ───────────────────────────────────────────────────────────────
+/**
+ * Returns up to 3 quick-win tasks: active, non-blocked, ≤30 min, and not
+ * already the NBA. Among ties, shorter tasks are preferred.
+ */
+export function getQuickWins(tasks: Task[], excludeId?: string): Task[] {
+  const now = new Date()
+
+  const eligible = tasks.filter(
+    (t) =>
+      t.status === 'active' &&
+      t.id !== excludeId &&
+      !isTaskBlocked(t, tasks) &&
+      t.estimated_minutes !== null &&
+      t.estimated_minutes <= 30
+  )
+
+  const scored = eligible.map((task) => ({
+    task,
+    score: scoreTask(task, now).score,
+  }))
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    // Among equal-scored quick wins, prefer shorter tasks
+    return (a.task.estimated_minutes ?? 0) - (b.task.estimated_minutes ?? 0)
+  })
+
+  return scored.slice(0, 3).map((s) => s.task)
 }
 
 // ─── Task grouping logic ──────────────────────────────────────────────────────
@@ -141,7 +186,7 @@ export function groupTasks(tasks: Task[]): Record<TaskGroup, Task[]> {
     }
   }
 
-  // Sort each group: urgency first, then effective due datetime, then FIFO
+  // Sort each group: unblocked before blocked, then urgency, then effective due, then FIFO
   const urgencyOrder: Record<Task['urgency'], number> = { high: 0, medium: 1, low: 2 }
 
   const getEffectiveMs = (t: Task): number => {
@@ -151,10 +196,17 @@ export function groupTasks(tasks: Task[]): Record<TaskGroup, Task[]> {
 
   for (const key of Object.keys(groups) as TaskGroup[]) {
     groups[key].sort((a, b) => {
+      // Blocked tasks always sink to the bottom
+      const aBlocked = isTaskBlocked(a, tasks)
+      const bBlocked = isTaskBlocked(b, tasks)
+      if (aBlocked !== bBlocked) return aBlocked ? 1 : -1
+
       const urgencyDiff = urgencyOrder[a.urgency] - urgencyOrder[b.urgency]
       if (urgencyDiff !== 0) return urgencyDiff
+
       const timeDiff = getEffectiveMs(a) - getEffectiveMs(b)
       if (timeDiff !== 0) return timeDiff
+
       return parseISO(a.created_at).getTime() - parseISO(b.created_at).getTime()
     })
   }

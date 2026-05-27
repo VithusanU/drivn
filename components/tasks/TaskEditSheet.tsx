@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Check } from 'lucide-react'
+import { X, Check, Link2 } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { cn } from '@/lib/utils'
 import type { Task, TaskUrgency } from '@/types'
@@ -70,12 +70,14 @@ interface TaskEditSheetProps {
 
 export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProps) {
   const updateTask = useTaskStore((s) => s.updateTask)
+  const tasks = useTaskStore((s) => s.tasks)
 
   const [title, setTitle] = useState(task.title)
   const [urgency, setUrgency] = useState<TaskUrgency>(task.urgency)
   const [dueDate, setDueDate] = useState<string>(task.due_date ?? '')
   const [dueTime, setDueTime] = useState<string>(task.due_time ?? '')
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(task.estimated_minutes ?? null)
+  const [blockedBy, setBlockedBy] = useState<string | null>(task.blocked_by ?? null)
   const [saving, setSaving] = useState(false)
 
   const todayStr = new Date().toISOString().split('T')[0]
@@ -89,6 +91,7 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
       due_date: dueDate || null,
       due_time: dueTime || null,
       estimated_minutes: estimatedMinutes,
+      blocked_by: blockedBy,
     })
     setSaving(false)
     onClose()
@@ -267,6 +270,48 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
                 </button>
               )}
             </div>
+
+            {/* Depends on */}
+            {tasks.filter((t) => t.status === 'active' && t.id !== task.id).length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground/60">
+                  Depends on <span className="normal-case font-normal">(optional)</span>
+                </p>
+                {blockedBy ? (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-primary/30 bg-primary/5">
+                    <Link2 className="w-3 h-3 text-primary/60 flex-shrink-0" />
+                    <span className="text-[12px] text-primary/80 flex-1 truncate">
+                      {tasks.find((t) => t.id === blockedBy)?.title ?? 'Unknown task'}
+                    </span>
+                    <button
+                      onClick={() => setBlockedBy(null)}
+                      className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-1 max-h-28 overflow-y-auto">
+                    {tasks
+                      .filter((t) => t.status === 'active' && t.id !== task.id)
+                      .slice(0, 10)
+                      .map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => setBlockedBy(t.id)}
+                          className={cn(
+                            'w-full flex items-center gap-2 px-3 py-2 rounded-xl border text-left',
+                            'border-border/50 text-muted-foreground/60 text-[12px]',
+                            'hover:border-primary/30 hover:text-primary/70 transition-colors'
+                          )}
+                        >
+                          <span className="truncate">{t.title}</span>
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Save */}
             <button

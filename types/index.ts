@@ -30,6 +30,7 @@ export interface Task {
   updated_at: string
   completed_at: string | null
   last_engaged_at: string | null
+  blocked_by: string | null
 }
 
 export interface CreateTaskInput {
@@ -39,6 +40,7 @@ export interface CreateTaskInput {
   due_date?: string | null
   due_time?: string | null
   estimated_minutes?: number | null
+  blocked_by?: string | null
 }
 
 export interface UpdateTaskInput {
@@ -49,6 +51,7 @@ export interface UpdateTaskInput {
   due_time?: string | null
   estimated_minutes?: number | null
   status?: TaskStatus
+  blocked_by?: string | null
 }
 
 // Derived — computed client-side
@@ -149,6 +152,7 @@ export interface TaskStore {
   deleteTask: (id: string) => Promise<void>
   undoDeleteTask: (id: string, task: Task) => Promise<void>
   getRecommendedTask: () => RecommendedTask | null
+  getQuickWins: () => Task[]
   getTasksByGroup: () => Record<TaskGroup, Task[]>
 }
 

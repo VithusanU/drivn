@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff } from 'lucide-react'
+import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff, Link2 } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { cn } from '@/lib/utils'
 import { parseVoiceInput, isSpeechRecognitionSupported } from '@/lib/voiceParser'
@@ -79,6 +79,7 @@ export default function QuickCapture() {
   const [dueDate, setDueDate] = useState<string>('')
   const [dueTime, setDueTime] = useState<string>('')
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null)
+  const [blockedBy, setBlockedBy] = useState<string | null>(null)
 
   const [voiceState, setVoiceState] = useState<VoiceState>('idle')
   const [voiceSupported, setVoiceSupported] = useState(false)
@@ -87,6 +88,7 @@ export default function QuickCapture() {
   const inputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<InstanceType<typeof window.SpeechRecognition> | null>(null)
   const createTask = useTaskStore((s) => s.createTask)
+  const tasks = useTaskStore((s) => s.tasks)
 
   useEffect(() => {
     setVoiceSupported(isSpeechRecognitionSupported())
@@ -97,6 +99,7 @@ export default function QuickCapture() {
     setDueDate('')
     setDueTime('')
     setEstimatedMinutes(null)
+    setBlockedBy(null)
   }
 
   const handleSubmit = async () => {
@@ -110,6 +113,7 @@ export default function QuickCapture() {
       due_date: dueDate || null,
       due_time: dueTime || null,
       estimated_minutes: estimatedMinutes,
+      blocked_by: blockedBy,
     })
     setValue('')
     resetOptions()
@@ -385,6 +389,48 @@ export default function QuickCapture() {
                   </button>
                 )}
               </div>
+
+              {/* Depends on */}
+              {tasks.filter((t) => t.status === 'active').length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground/60">
+                    Depends on <span className="normal-case font-normal">(optional)</span>
+                  </p>
+                  {blockedBy ? (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-primary/30 bg-primary/5">
+                      <Link2 className="w-3 h-3 text-primary/60 flex-shrink-0" />
+                      <span className="text-[12px] text-primary/80 flex-1 truncate">
+                        {tasks.find((t) => t.id === blockedBy)?.title ?? 'Unknown task'}
+                      </span>
+                      <button
+                        onClick={() => setBlockedBy(null)}
+                        className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1 max-h-28 overflow-y-auto">
+                      {tasks
+                        .filter((t) => t.status === 'active')
+                        .slice(0, 10)
+                        .map((t) => (
+                          <button
+                            key={t.id}
+                            onClick={() => setBlockedBy(t.id)}
+                            className={cn(
+                              'w-full flex items-center gap-2 px-3 py-2 rounded-xl border text-left',
+                              'border-border/50 text-muted-foreground/60 text-[12px]',
+                              'hover:border-primary/30 hover:text-primary/70 transition-colors'
+                            )}
+                          >
+                            <span className="truncate">{t.title}</span>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
             </div>
           </motion.div>

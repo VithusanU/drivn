@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { createClient } from '@/lib/supabase/client'
-import { getRecommendedTask, groupTasks } from '@/lib/engine/recommendation'
+import { getRecommendedTask, groupTasks, getQuickWins } from '@/lib/engine/recommendation'
 import { Analytics } from '@/lib/analytics'
 import type { Task, TaskStore, CreateTaskInput, UpdateTaskInput, TaskGroup, RecommendedTask } from '@/types'
 
@@ -44,6 +44,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         due_date: input.due_date ?? null,
         due_time: input.due_time ?? null,
         estimated_minutes: input.estimated_minutes ?? null,
+        blocked_by: input.blocked_by ?? null,
       })
       .select()
       .single()
@@ -118,6 +119,11 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
   getRecommendedTask: (): RecommendedTask | null => {
     return getRecommendedTask(get().tasks)
+  },
+
+  getQuickWins: (): Task[] => {
+    const nba = getRecommendedTask(get().tasks)
+    return getQuickWins(get().tasks, nba?.task.id)
   },
 
   getTasksByGroup: (): Record<TaskGroup, Task[]> => {
