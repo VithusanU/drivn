@@ -19,9 +19,11 @@ export default function QuickWins() {
   const betaModeEnabled = useUserStore((s) => s.betaModeEnabled)
   const profile = useUserStore((s) => s.profile)
   const hasBetaAccess = profile?.beta_access === true
+  const hasOwnKey = !!profile?.anthropic_key_masked
+  const canUseAI = hasBetaAccess || hasOwnKey
   const aiRecommendation = useAIStore((s) => s.recommendation)
 
-  const isAIMode = betaModeEnabled && hasBetaAccess
+  const isAIMode = betaModeEnabled && canUseAI
 
   // Don't show while in a focus session
   if (timerTaskId) return null

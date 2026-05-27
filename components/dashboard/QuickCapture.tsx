@@ -2,10 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff, Link2 } from 'lucide-react'
+import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff, Link2, Camera } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { cn } from '@/lib/utils'
 import { parseVoiceInput, isSpeechRecognitionSupported } from '@/lib/voiceParser'
+import TaskScanner, { type TaskScannerRef } from './TaskScanner'
 import type { TaskUrgency } from '@/types'
 
 const URGENCY_OPTIONS: { value: TaskUrgency; label: string }[] = [
@@ -87,6 +88,7 @@ export default function QuickCapture() {
 
   const inputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<InstanceType<typeof window.SpeechRecognition> | null>(null)
+  const scannerRef = useRef<TaskScannerRef | null>(null)
   const createTask = useTaskStore((s) => s.createTask)
   const tasks = useTaskStore((s) => s.tasks)
 
@@ -211,6 +213,8 @@ export default function QuickCapture() {
   const todayStr = new Date().toISOString().split('T')[0]
 
   return (
+    <>
+    <TaskScanner scannerRef={scannerRef} />
     <div className={cn(
       'fixed z-20 pb-3',
       'bottom-[60px] left-0 right-0',
@@ -468,6 +472,15 @@ export default function QuickCapture() {
           )}
         />
 
+        {/* Camera / scan button */}
+        <button
+          onClick={() => scannerRef.current?.open()}
+          aria-label="Scan sticky note"
+          className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all text-muted-foreground/30 hover:text-muted-foreground/60"
+        >
+          <Camera className="w-3.5 h-3.5" />
+        </button>
+
         {/* Mic button — only shown when speech recognition is supported */}
         {voiceSupported && (
           <button
@@ -551,5 +564,6 @@ export default function QuickCapture() {
       </motion.div>
       </div>
     </div>
+    </>
   )
 }

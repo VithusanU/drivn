@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { format } from 'date-fns'
-import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap } from 'lucide-react'
+import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap, Key, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/stores/userStore'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,8 @@ export default function ProfilePage() {
   const betaModeEnabled = useUserStore((s) => s.betaModeEnabled)
   const toggleBetaMode = useUserStore((s) => s.toggleBetaMode)
   const requestBetaAccess = useUserStore((s) => s.requestBetaAccess)
+  const saveApiKey = useUserStore((s) => s.saveApiKey)
+  const removeApiKey = useUserStore((s) => s.removeApiKey)
   const router = useRouter()
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -37,6 +39,15 @@ export default function ProfilePage() {
   const [betaRequestMsg, setBetaRequestMsg] = useState<string | null>(null)
 
   const hasBetaAccess = profile?.beta_access === true
+  const hasOwnKey = !!profile?.anthropic_key_masked
+  const canUseAI = hasBetaAccess || hasOwnKey
+
+  // BYOK state
+  const [keyInput, setKeyInput] = useState('')
+  const [showKeyInput, setShowKeyInput] = useState(false)
+  const [savingKey, setSavingKey] = useState(false)
+  const [keyMsg, setKeyMsg] = useState<string | null>(null)
+  const [removingKey, setRemovingKey] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -72,6 +83,29 @@ export default function ProfilePage() {
       setBetaRequestMsg('Something went wrong. Please try again.')
     }
     setBetaRequesting(false)
+  }
+
+  const handleSaveKey = async () => {
+    if (!keyInput.trim()) return
+    setSavingKey(true)
+    setKeyMsg(null)
+    const result = await saveApiKey(keyInput.trim())
+    if (result === 'ok') {
+      setKeyInput('')
+      setShowKeyInput(false)
+      setKeyMsg(null)
+    } else if (result === 'invalid') {
+      setKeyMsg('Key must start with sk-ant-')
+    } else {
+      setKeyMsg('Failed to save. Try again.')
+    }
+    setSavingKey(false)
+  }
+
+  const handleRemoveKey = async () => {
+    setRemovingKey(true)
+    await removeApiKey()
+    setRemovingKey(false)
   }
 
   const handleSignOut = async () => {
@@ -277,19 +311,20 @@ export default function ProfilePage() {
       <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3 mt-8">
         Beta
       </p>
-      <div className="rounded-2xl border border-border overflow-hidden">
-        {hasBetaAccess ? (
-          /* Approved — show toggle */
+      <div className="rounded-2xl border border-border overflow-hidden divide-y divide-border/50">
+
+        {/* ── AI mode toggle / access row ── */}
+        {canUseAI ? (
           <button
             onClick={toggleBetaMode}
-            className="w-full flex items-center justify-between px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors"
+            className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-secondary/50 transition-colors"
           >
             <div className="flex items-center gap-3">
               <Sparkles className={cn('w-4 h-4', betaModeEnabled ? 'text-primary' : 'text-muted-foreground')} />
               <div className="text-left">
                 <p className="text-sm text-foreground/80">AI mode</p>
                 <p className="text-[11px] text-muted-foreground/50 mt-0.5">
-                  AI-powered task recommendations
+                  {hasOwnKey ? 'Using your own API key' : 'AI-powered recommendations'}
                 </p>
               </div>
             </div>
@@ -298,12 +333,10 @@ export default function ProfilePage() {
             </span>
           </button>
         ) : betaRequest === undefined ? (
-          /* Loading */
           <div className="px-4 py-3.5">
             <div className="h-4 w-1/2 rounded bg-white/5 animate-pulse" />
           </div>
         ) : betaRequest?.status === 'pending' ? (
-          /* Pending */
           <div className="px-4 py-3.5 flex items-center gap-3">
             <Sparkles className="w-4 h-4 text-muted-foreground" />
             <div>
@@ -312,7 +345,6 @@ export default function ProfilePage() {
             </div>
           </div>
         ) : betaRequest?.status === 'denied' ? (
-          /* Denied */
           <div className="px-4 py-3.5 flex items-center gap-3">
             <Sparkles className="w-4 h-4 text-muted-foreground" />
             <div>
@@ -321,14 +353,13 @@ export default function ProfilePage() {
             </div>
           </div>
         ) : (
-          /* No request yet */
           <div className="px-4 py-3.5">
             <div className="flex items-start gap-3">
               <Sparkles className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
               <div className="flex-1">
                 <p className="text-sm text-foreground/80">AI mode</p>
                 <p className="text-[11px] text-muted-foreground/50 mt-0.5 mb-3">
-                  Get AI-powered recommendations that understand your tasks semantically.
+                  Get AI-powered recommendations. Request free access or use your own key below.
                 </p>
                 <button
                   onClick={handleRequestBeta}
@@ -349,6 +380,87 @@ export default function ProfilePage() {
             </div>
           </div>
         )}
+
+        {/* ── Your API key (BYOK) ── */}
+        <div className="px-4 py-3.5">
+          <div className="flex items-start gap-3">
+            <Key className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm text-foreground/80">Your API key</p>
+              {hasOwnKey ? (
+                /* Key is saved — show masked + remove */
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-[12px] font-mono text-muted-foreground/60 flex-1 truncate">
+                    {profile?.anthropic_key_masked}
+                  </span>
+                  <button
+                    onClick={handleRemoveKey}
+                    disabled={removingKey}
+                    className="text-[11px] text-muted-foreground/40 hover:text-destructive/70 transition-colors disabled:opacity-50"
+                  >
+                    {removingKey ? '…' : 'Remove'}
+                  </button>
+                </div>
+              ) : showKeyInput ? (
+                /* Input form */
+                <div className="mt-2 space-y-2">
+                  <input
+                    type="password"
+                    value={keyInput}
+                    onChange={(e) => setKeyInput(e.target.value)}
+                    placeholder="sk-ant-api03-..."
+                    autoComplete="off"
+                    className={cn(
+                      'w-full px-3 py-2 rounded-xl border text-[12px] font-mono',
+                      'bg-background text-foreground/70 outline-none transition-all',
+                      'border-border/50 focus:border-primary/40',
+                      'placeholder:text-muted-foreground/30'
+                    )}
+                  />
+                  {keyMsg && <p className="text-[11px] text-destructive/70">{keyMsg}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSaveKey}
+                      disabled={savingKey || !keyInput.trim()}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium',
+                        'bg-primary text-primary-foreground',
+                        'hover:bg-primary/90 transition-colors disabled:opacity-50'
+                      )}
+                    >
+                      <Check className="w-3 h-3" />
+                      {savingKey ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => { setShowKeyInput(false); setKeyInput(''); setKeyMsg(null) }}
+                      className="px-3 py-1.5 rounded-xl text-[12px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Prompt to add */
+                <div className="mt-1">
+                  <p className="text-[11px] text-muted-foreground/50 mb-2">
+                    Use your own Anthropic key — unlocks AI for you regardless of beta access.
+                  </p>
+                  <button
+                    onClick={() => setShowKeyInput(true)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium',
+                      'bg-secondary border border-border/50 text-muted-foreground/70',
+                      'hover:border-primary/30 hover:text-primary/70 transition-colors'
+                    )}
+                  >
+                    <Key className="w-3 h-3" />
+                    Add key
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Sign out */}

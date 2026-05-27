@@ -35,6 +35,8 @@ export default function NextBestAction() {
   const betaModeEnabled = useUserStore((s) => s.betaModeEnabled)
   const profile = useUserStore((s) => s.profile)
   const hasBetaAccess = profile?.beta_access === true
+  const hasOwnKey = !!profile?.anthropic_key_masked
+  const canUseAI = hasBetaAccess || hasOwnKey
 
   const aiRecommendation = useAIStore((s) => s.recommendation)
   const aiFetching = useAIStore((s) => s.fetching)
@@ -49,7 +51,7 @@ export default function NextBestAction() {
   const breakActive = useTimerStore((s) => s.breakActive)
   const breakSecondsLeft = useTimerStore((s) => s.breakSecondsLeft)
 
-  const isAIMode = betaModeEnabled && hasBetaAccess
+  const isAIMode = betaModeEnabled && canUseAI
 
   // Fetch AI recommendation whenever beta mode is on and tasks change
   useEffect(() => {

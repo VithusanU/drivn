@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
+import { decrypt } from '@/lib/encryption'
 import type { Task } from '@/types'
 
 const ADMIN_EMAIL = 'vithusan.business@gmail.com'
@@ -15,16 +16,30 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // ── Beta access gate ────────────────────────────────────────────────────────
+  // ── Resolve API key ─────────────────────────────────────────────────────────
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('beta_access, email')
+    .select('beta_access, email, anthropic_key_encrypted')
     .eq('id', user.id)
     .single()
 
-  const hasBetaAccess = profile?.beta_access === true || profile?.email === ADMIN_EMAIL
-  if (!hasBetaAccess) {
-    return Response.json({ error: 'Beta access required' }, { status: 403 })
+  let apiKey: string
+
+  if (profile?.anthropic_key_encrypted) {
+    // User's own key — always allowed
+    try {
+      apiKey = decrypt(profile.anthropic_key_encrypted)
+    } catch {
+      return Response.json({ error: 'Failed to decrypt API key' }, { status: 500 })
+    }
+  } else if (profile?.beta_access || profile?.email === ADMIN_EMAIL) {
+    // Beta access — use server key
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return Response.json({ error: 'Server API key not configured' }, { status: 500 })
+    }
+    apiKey = process.env.ANTHROPIC_API_KEY
+  } else {
+    return Response.json({ error: 'Beta access or own API key required' }, { status: 403 })
   }
 
   // ── Cache hit ───────────────────────────────────────────────────────────────
@@ -63,7 +78,7 @@ export async function POST(req: Request) {
   }))
 
   // ── Call Claude ─────────────────────────────────────────────────────────────
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const client = new Anthropic({ apiKey })
 
   const message = await client.messages.create({
     model: 'claude-haiku-4-5',

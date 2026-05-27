@@ -9,6 +9,7 @@ export interface UserProfile {
   last_active_date: string | null
   onboarded_at: string | null
   beta_access: boolean
+  anthropic_key_masked: string | null
 }
 
 // ─── Tasks ─────────────────────────────────────────────────────────────────
@@ -124,6 +125,16 @@ export interface UserStreak {
   total_tasks_completed: number
 }
 
+// ─── Scanner ───────────────────────────────────────────────────────────────
+
+export interface ScannedTask {
+  title: string
+  due_date: string | null
+  due_time: string | null
+  estimated_minutes: number | null
+  urgency: TaskUrgency
+}
+
 // ─── Beta Access ───────────────────────────────────────────────────────────
 
 export interface BetaRequest {
@@ -201,6 +212,8 @@ export interface UserStore {
   betaModeEnabled: boolean
   toggleBetaMode: () => void
   requestBetaAccess: () => Promise<'ok' | 'already_requested' | 'error'>
+  saveApiKey: (key: string) => Promise<'ok' | 'invalid' | 'error'>
+  removeApiKey: () => Promise<void>
 }
 
 // ─── AI Store ──────────────────────────────────────────────────────────────

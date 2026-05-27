@@ -108,4 +108,32 @@ export const useUserStore = create<UserStore>((set, get) => ({
 
     return 'ok'
   },
+
+  saveApiKey: async (key: string) => {
+    try {
+      const res = await fetch('/api/user-api-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key }),
+      })
+      if (res.status === 400) return 'invalid'
+      if (!res.ok) return 'error'
+      const { masked } = await res.json()
+      set((state) => ({
+        profile: state.profile ? { ...state.profile, anthropic_key_masked: masked } : null,
+      }))
+      return 'ok'
+    } catch {
+      return 'error'
+    }
+  },
+
+  removeApiKey: async () => {
+    try {
+      await fetch('/api/user-api-key', { method: 'DELETE' })
+      set((state) => ({
+        profile: state.profile ? { ...state.profile, anthropic_key_masked: null } : null,
+      }))
+    } catch {}
+  },
 }))
