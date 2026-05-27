@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { format } from 'date-fns'
-import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap, Key, X } from 'lucide-react'
+import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap, Key, X, Camera, Link2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/stores/userStore'
 import { cn } from '@/lib/utils'
@@ -624,9 +624,46 @@ const GUIDE_ITEMS = [
     steps: [
       'Every task has a priority: High (do today), Medium, or Low.',
       'The home screen automatically surfaces your most important task as "Next Best Action".',
+      'Quick wins (tasks under 30 min) appear as a horizontal strip — knock these out between bigger tasks.',
       'Tap a task to open it, then start a focus session to work on it distraction-free.',
       'Completing tasks builds your streak — try to complete at least one task every day.',
       'Use the Summary tab to see your activity calendar and spot patterns over time.',
+    ],
+  },
+  {
+    id: 'dependencies',
+    title: 'Link tasks with dependencies',
+    icon: Link2,
+    steps: [
+      'When creating or editing a task, expand the options panel and look for "Depends on".',
+      'Select another task that must be completed first — the dependent task will be hidden from recommendations until the blocker is done.',
+      'Blocked tasks show a lock icon in your task list so you know they\'re waiting on something.',
+      'This is useful for things like "write the report" depending on "gather the data" — drivn won\'t nag you about the report until the data is ready.',
+      'Remove the dependency at any time by editing the task and tapping the X next to the linked task.',
+    ],
+  },
+  {
+    id: 'scanner',
+    title: 'Scan a sticky note into tasks',
+    icon: Camera,
+    steps: [
+      'Tap the camera icon in the quick-capture bar at the bottom of the home screen.',
+      'Take a photo of any sticky note, whiteboard, or handwritten list.',
+      'AI reads the image and extracts each task — including dates, times, and estimated effort if you wrote them.',
+      'Write hints directly on your note for better results: "Call dentist tomorrow 3pm", "Finish slides Friday - 2h", "Buy milk !".',
+      'A review screen appears where you can edit each task, set priorities, and remove any misreads before adding them all at once.',
+    ],
+  },
+  {
+    id: 'ai-mode',
+    title: 'Enable AI mode',
+    icon: Sparkles,
+    steps: [
+      'AI mode upgrades your Next Best Action and Quick Wins from rule-based to semantically aware — Claude reads your task titles and reasons about what actually matters most right now.',
+      'To unlock it: scroll to the Beta section on this page and tap "Request access" — you\'ll be approved manually.',
+      'Alternatively, add your own Anthropic API key in the "Your API key" section — this unlocks AI mode instantly with no approval needed and uses your own usage quota.',
+      'Get a free API key at console.anthropic.com. Claude Haiku (the model drivn uses) costs roughly $0.001 per recommendation — effectively free for personal use.',
+      'Once you have access, toggle AI mode On in the Beta section. You can switch it off anytime to go back to the algorithmic ranking.',
     ],
   },
 ]
