@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle, Clock, XCircle, Copy, Check, Users, TrendingUp, Target, ExternalLink } from 'lucide-react'
+import { CheckCircle, Clock, XCircle, Copy, Check, Users, TrendingUp, Target, ExternalLink, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const ADMIN_EMAIL = 'vithusan.business@gmail.com'
@@ -16,6 +16,16 @@ interface SpotifyRequest {
   created_at: string
 }
 
+interface BetaRequest {
+  id: string
+  user_id: string
+  user_email: string
+  user_name: string | null
+  status: 'pending' | 'approved' | 'denied'
+  requested_at: string
+  reviewed_at: string | null
+}
+
 interface Metrics {
   totalUsers: number
   signupsThisWeek: number
@@ -27,10 +37,12 @@ interface Metrics {
 export default function AdminPage() {
   const [authorized, setAuthorized] = useState<boolean | null>(null)
   const [requests, setRequests] = useState<SpotifyRequest[]>([])
+  const [betaRequests, setBetaRequests] = useState<BetaRequest[]>([])
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
+  const [updatingBeta, setUpdatingBeta] = useState<string | null>(null)
 
   useEffect(() => {
     checkAuth()
@@ -45,7 +57,7 @@ export default function AdminPage() {
       return
     }
     setAuthorized(true)
-    await Promise.all([fetchRequests(), fetchMetrics()])
+    await Promise.all([fetchRequests(), fetchMetrics(), fetchBetaRequests()])
     setLoading(false)
   }
 
@@ -77,12 +89,52 @@ export default function AdminPage() {
     setRequests((data as SpotifyRequest[]) ?? [])
   }
 
+  const fetchBetaRequests = async () => {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('beta_requests')
+      .select('*')
+      .order('requested_at', { ascending: false })
+    setBetaRequests((data as BetaRequest[]) ?? [])
+  }
+
   const updateStatus = async (id: string, status: 'approved' | 'denied') => {
     setUpdating(id)
     const supabase = createClient()
     await supabase.from('spotify_requests').update({ status }).eq('id', id)
     setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)))
     setUpdating(null)
+  }
+
+  const updateBetaStatus = async (request: BetaRequest, status: 'approved' | 'denied') => {
+    setUpdatingBeta(request.id)
+    const supabase = createClient()
+    const now = new Date().toISOString()
+
+    // Update beta_requests row
+    await supabase
+      .from('beta_requests')
+      .update({ status, reviewed_at: now })
+      .eq('id', request.id)
+
+    // If approved, grant beta_access on user_profiles
+    if (status === 'approved') {
+      await supabase
+        .from('user_profiles')
+        .update({ beta_access: true })
+        .eq('id', request.user_id)
+    } else {
+      // If denied, revoke (in case re-reviewed)
+      await supabase
+        .from('user_profiles')
+        .update({ beta_access: false })
+        .eq('id', request.user_id)
+    }
+
+    setBetaRequests((prev) =>
+      prev.map((r) => (r.id === request.id ? { ...r, status, reviewed_at: now } : r))
+    )
+    setUpdatingBeta(null)
   }
 
   const copyEmail = (email: string) => {
@@ -199,6 +251,57 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {/* ── Beta Access Requests ── */}
+      {(() => {
+        const betaPending = betaRequests.filter((r) => r.status === 'pending')
+        const betaReviewed = betaRequests.filter((r) => r.status !== 'pending')
+        return (
+          <div className="space-y-3">
+            <div>
+              <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground">Beta Access Requests</p>
+              <p className="text-[11px] text-muted-foreground/60 mt-1">
+                Approve to grant AI mode access. Deny to reject.
+              </p>
+            </div>
+
+            {betaRequests.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No requests yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {betaPending.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-muted-foreground/60">Pending ({betaPending.length})</p>
+                    {betaPending.map((r) => (
+                      <BetaRequestRow
+                        key={r.id}
+                        request={r}
+                        updating={updatingBeta}
+                        onApprove={() => updateBetaStatus(r, 'approved')}
+                        onDeny={() => updateBetaStatus(r, 'denied')}
+                      />
+                    ))}
+                  </div>
+                )}
+                {betaReviewed.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-muted-foreground/60">Reviewed</p>
+                    {betaReviewed.map((r) => (
+                      <BetaRequestRow
+                        key={r.id}
+                        request={r}
+                        updating={updatingBeta}
+                        onApprove={() => updateBetaStatus(r, 'approved')}
+                        onDeny={() => updateBetaStatus(r, 'denied')}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -252,6 +355,59 @@ function RequestRow({ request, copied, updating, onCopy, onApprove, onDeny }: {
         ) : (
           <div className={cn('flex items-center gap-1 text-[11px] font-medium', request.status === 'approved' ? 'text-[#1DB954]' : 'text-muted-foreground/50')}>
             {request.status === 'approved' ? <><CheckCircle className="w-3.5 h-3.5" /> Approved</> : <><XCircle className="w-3.5 h-3.5" /> Denied</>}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function BetaRequestRow({ request, updating, onApprove, onDeny }: {
+  request: BetaRequest
+  updating: string | null
+  onApprove: () => void
+  onDeny: () => void
+}) {
+  const isUpdating = updating === request.id
+
+  return (
+    <div className="rounded-xl border border-border bg-card px-4 py-3 flex items-center gap-3">
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+        <Sparkles className="w-3.5 h-3.5 text-primary/60" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-medium text-foreground truncate">
+          {request.user_name || request.user_email}
+        </p>
+        <p className="text-[11px] text-muted-foreground/60 truncate">{request.user_email}</p>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {request.status === 'pending' ? (
+          <>
+            <button
+              onClick={onDeny}
+              disabled={isUpdating}
+              className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onApprove}
+              disabled={isUpdating}
+              className="px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary text-[12px] font-medium hover:bg-primary/20 transition-colors disabled:opacity-50"
+            >
+              {isUpdating ? '…' : 'Approve'}
+            </button>
+          </>
+        ) : (
+          <div className={cn(
+            'flex items-center gap-1 text-[11px] font-medium',
+            request.status === 'approved' ? 'text-primary' : 'text-muted-foreground/50'
+          )}>
+            {request.status === 'approved'
+              ? <><CheckCircle className="w-3.5 h-3.5" /> Approved</>
+              : <><XCircle className="w-3.5 h-3.5" /> Denied</>
+            }
           </div>
         )}
       </div>

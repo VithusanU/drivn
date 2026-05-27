@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { format } from 'date-fns'
-import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus } from 'lucide-react'
+import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/stores/userStore'
 import { cn } from '@/lib/utils'
@@ -18,6 +18,9 @@ import type { SavedAccount } from '@/lib/savedAccounts'
 export default function ProfilePage() {
   const profile = useUserStore((s) => s.profile)
   const streak = useUserStore((s) => s.streak)
+  const betaModeEnabled = useUserStore((s) => s.betaModeEnabled)
+  const toggleBetaMode = useUserStore((s) => s.toggleBetaMode)
+  const requestBetaAccess = useUserStore((s) => s.requestBetaAccess)
   const router = useRouter()
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -28,12 +31,48 @@ export default function ProfilePage() {
   const [openGuide, setOpenGuide] = useState<string | null>(null)
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([])
 
+  // Beta access state
+  const [betaRequest, setBetaRequest] = useState<{ status: string } | null | undefined>(undefined)
+  const [betaRequesting, setBetaRequesting] = useState(false)
+  const [betaRequestMsg, setBetaRequestMsg] = useState<string | null>(null)
+
+  const hasBetaAccess = profile?.beta_access === true
+
   useEffect(() => {
     setMounted(true)
     isSubscribed().then(setNotifEnabled)
     getReminderTime().then((t) => { if (t) setReminderTime(t.slice(0, 5)) })
     setSavedAccounts(getSavedAccounts())
+    fetchBetaRequest()
   }, [])
+
+  const fetchBetaRequest = async () => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data } = await supabase
+      .from('beta_requests')
+      .select('status')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    setBetaRequest(data ?? null)
+  }
+
+  const handleRequestBeta = async () => {
+    setBetaRequesting(true)
+    setBetaRequestMsg(null)
+    const result = await requestBetaAccess()
+    if (result === 'ok') {
+      setBetaRequest({ status: 'pending' })
+      setBetaRequestMsg('Request sent! You\'ll be notified once approved.')
+    } else if (result === 'already_requested') {
+      setBetaRequest({ status: 'pending' })
+      setBetaRequestMsg('You\'ve already submitted a request.')
+    } else {
+      setBetaRequestMsg('Something went wrong. Please try again.')
+    }
+    setBetaRequesting(false)
+  }
 
   const handleSignOut = async () => {
     const supabase = createClient()
@@ -232,6 +271,84 @@ export default function ProfilePage() {
             {mounted ? (resolvedTheme === 'dark' ? 'Dark' : 'Light') : '—'}
           </span>
         </button>
+      </div>
+
+      {/* Beta */}
+      <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3 mt-8">
+        Beta
+      </p>
+      <div className="rounded-2xl border border-border overflow-hidden">
+        {hasBetaAccess ? (
+          /* Approved — show toggle */
+          <button
+            onClick={toggleBetaMode}
+            className="w-full flex items-center justify-between px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <Sparkles className={cn('w-4 h-4', betaModeEnabled ? 'text-primary' : 'text-muted-foreground')} />
+              <div className="text-left">
+                <p className="text-sm text-foreground/80">AI mode</p>
+                <p className="text-[11px] text-muted-foreground/50 mt-0.5">
+                  AI-powered task recommendations
+                </p>
+              </div>
+            </div>
+            <span className={cn('text-xs font-medium', betaModeEnabled ? 'text-primary' : 'text-muted-foreground/50')}>
+              {betaModeEnabled ? 'On' : 'Off'}
+            </span>
+          </button>
+        ) : betaRequest === undefined ? (
+          /* Loading */
+          <div className="px-4 py-3.5">
+            <div className="h-4 w-1/2 rounded bg-white/5 animate-pulse" />
+          </div>
+        ) : betaRequest?.status === 'pending' ? (
+          /* Pending */
+          <div className="px-4 py-3.5 flex items-center gap-3">
+            <Sparkles className="w-4 h-4 text-muted-foreground" />
+            <div>
+              <p className="text-sm text-foreground/80">AI mode</p>
+              <p className="text-[11px] text-amber-400/70 mt-0.5">Access requested · pending review</p>
+            </div>
+          </div>
+        ) : betaRequest?.status === 'denied' ? (
+          /* Denied */
+          <div className="px-4 py-3.5 flex items-center gap-3">
+            <Sparkles className="w-4 h-4 text-muted-foreground" />
+            <div>
+              <p className="text-sm text-foreground/80">AI mode</p>
+              <p className="text-[11px] text-destructive/60 mt-0.5">Request not approved</p>
+            </div>
+          </div>
+        ) : (
+          /* No request yet */
+          <div className="px-4 py-3.5">
+            <div className="flex items-start gap-3">
+              <Sparkles className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm text-foreground/80">AI mode</p>
+                <p className="text-[11px] text-muted-foreground/50 mt-0.5 mb-3">
+                  Get AI-powered recommendations that understand your tasks semantically.
+                </p>
+                <button
+                  onClick={handleRequestBeta}
+                  disabled={betaRequesting}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium',
+                    'bg-primary/10 border border-primary/30 text-primary',
+                    'hover:bg-primary/15 transition-colors disabled:opacity-50'
+                  )}
+                >
+                  <Zap className="w-3 h-3" />
+                  {betaRequesting ? 'Sending…' : 'Request access'}
+                </button>
+                {betaRequestMsg && (
+                  <p className="text-[11px] text-muted-foreground/60 mt-2">{betaRequestMsg}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sign out */}

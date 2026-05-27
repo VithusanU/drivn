@@ -2,9 +2,11 @@
 
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Zap } from 'lucide-react'
+import { Zap, Sparkles } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { useTimerStore } from '@/stores/timerStore'
+import { useUserStore } from '@/stores/userStore'
+import { useAIStore } from '@/stores/aiStore'
 import { formatEstimatedTime } from '@/lib/engine/recommendation'
 import { cn } from '@/lib/utils'
 
@@ -14,10 +16,30 @@ export default function QuickWins() {
   const timerTaskId = useTimerStore((s) => s.taskId)
   const router = useRouter()
 
+  const betaModeEnabled = useUserStore((s) => s.betaModeEnabled)
+  const profile = useUserStore((s) => s.profile)
+  const hasBetaAccess = profile?.beta_access === true
+  const aiRecommendation = useAIStore((s) => s.recommendation)
+
+  const isAIMode = betaModeEnabled && hasBetaAccess
+
   // Don't show while in a focus session
   if (timerTaskId) return null
 
-  const quickWins = getQuickWins()
+  // Resolve quick wins — AI list takes priority, fall back to algorithmic
+  let quickWins = getQuickWins()
+  let usingAI = false
+
+  if (isAIMode && aiRecommendation?.quickWinIds?.length) {
+    const aiWins = aiRecommendation.quickWinIds
+      .map((id) => tasks.find((t) => t.id === id))
+      .filter(Boolean) as typeof tasks
+    if (aiWins.length > 0) {
+      quickWins = aiWins
+      usingAI = true
+    }
+  }
+
   if (quickWins.length === 0) return null
 
   return (
@@ -28,7 +50,14 @@ export default function QuickWins() {
         <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground">
           Quick wins
         </p>
-        <span className="text-[10px] text-muted-foreground/40">· under 30m</span>
+        {usingAI ? (
+          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/10 border border-primary/25">
+            <Sparkles className="w-2 h-2 text-primary/70" />
+            <span className="text-[9px] font-medium text-primary/70">AI</span>
+          </div>
+        ) : (
+          <span className="text-[10px] text-muted-foreground/40">· under 30m</span>
+        )}
       </div>
 
       {/* Horizontal scroll strip */}

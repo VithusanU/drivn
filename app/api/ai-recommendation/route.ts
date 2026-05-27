@@ -1,0 +1,118 @@
+import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@/lib/supabase/server'
+import type { Task } from '@/types'
+
+const ADMIN_EMAIL = 'vithusan.business@gmail.com'
+
+// ── In-memory cache: userId → { json, expiresAt } ────────────────────────────
+const cache = new Map<string, { json: string; expiresAt: number }>()
+
+export async function POST(req: Request) {
+  // ── Auth ────────────────────────────────────────────────────────────────────
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // ── Beta access gate ────────────────────────────────────────────────────────
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('beta_access, email')
+    .eq('id', user.id)
+    .single()
+
+  const hasBetaAccess = profile?.beta_access === true || profile?.email === ADMIN_EMAIL
+  if (!hasBetaAccess) {
+    return Response.json({ error: 'Beta access required' }, { status: 403 })
+  }
+
+  // ── Cache hit ───────────────────────────────────────────────────────────────
+  const cached = cache.get(user.id)
+  if (cached && cached.expiresAt > Date.now()) {
+    return new Response(cached.json, {
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  // ── Parse body ──────────────────────────────────────────────────────────────
+  const { tasks } = (await req.json()) as { tasks: Task[] }
+  const activeTasks = tasks.filter((t) => t.status === 'active')
+  if (activeTasks.length === 0) {
+    return Response.json({ taskId: null, reason: '', quickWinIds: [] })
+  }
+
+  // ── Build prompt ────────────────────────────────────────────────────────────
+  const now = new Date()
+  const timeContext = now.toLocaleString('en-US', {
+    weekday: 'long',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+
+  const taskList = activeTasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    urgency: t.urgency,
+    due_date: t.due_date,
+    due_time: t.due_time,
+    estimated_minutes: t.estimated_minutes,
+    blocked_by: t.blocked_by,
+    created_at: t.created_at,
+  }))
+
+  // ── Call Claude ─────────────────────────────────────────────────────────────
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5',
+    max_tokens: 256,
+    system: `You are the priority engine for drivn, a focus and productivity app.
+Given a list of tasks, identify the single best one to work on RIGHT NOW plus up to 3 quick wins.
+
+Hard rules:
+- NEVER recommend a task whose blocked_by field matches another task's id in the list
+- Overdue tasks with high urgency take top priority
+- Quick wins must have estimated_minutes <= 30, must not be blocked, and must not be the main recommendation
+
+Soft rules:
+- Read task titles semantically — a bug fix affecting users outweighs a cosmetic change even with equal metadata
+- Consider downstream impact: completing a blocker that unblocks 2+ tasks is often best
+- Factor in time of day and day of week for energy-matching
+- Cluster related tasks as quick wins when possible (e.g. all phone calls together)
+
+Respond with ONLY valid JSON — no markdown, no explanation:
+{"taskId":"<id or null>","reason":"<max 12 words>","quickWinIds":["<id>"]}`,
+    messages: [
+      {
+        role: 'user',
+        content: `Current time: ${timeContext}\n\nTasks:\n${JSON.stringify(taskList, null, 2)}\n\nWhat should I do right now?`,
+      },
+    ],
+  })
+
+  // ── Parse response ──────────────────────────────────────────────────────────
+  const text = message.content[0].type === 'text' ? message.content[0].text.trim() : '{}'
+
+  let result: { taskId: string | null; reason: string; quickWinIds: string[] }
+  try {
+    result = JSON.parse(text)
+    // Validate taskId exists in the task list
+    if (result.taskId && !activeTasks.find((t) => t.id === result.taskId)) {
+      result.taskId = null
+    }
+    // Filter out invalid quick win IDs
+    result.quickWinIds = (result.quickWinIds ?? []).filter((id) =>
+      activeTasks.find((t) => t.id === id)
+    )
+  } catch {
+    result = { taskId: null, reason: '', quickWinIds: [] }
+  }
+
+  // ── Cache for 60 seconds ───────────────────────────────────────────────────
+  const json = JSON.stringify(result)
+  cache.set(user.id, { json, expiresAt: Date.now() + 60_000 })
+
+  return new Response(json, { headers: { 'Content-Type': 'application/json' } })
+}

@@ -8,6 +8,7 @@ export interface UserProfile {
   created_at: string
   last_active_date: string | null
   onboarded_at: string | null
+  beta_access: boolean
 }
 
 // ─── Tasks ─────────────────────────────────────────────────────────────────
@@ -123,6 +124,24 @@ export interface UserStreak {
   total_tasks_completed: number
 }
 
+// ─── Beta Access ───────────────────────────────────────────────────────────
+
+export interface BetaRequest {
+  id: string
+  user_id: string
+  user_email: string
+  user_name: string | null
+  status: 'pending' | 'approved' | 'denied'
+  requested_at: string
+  reviewed_at: string | null
+}
+
+export interface AIRecommendation {
+  taskId: string
+  reason: string
+  quickWinIds: string[]
+}
+
 // ─── Recommendation Engine ─────────────────────────────────────────────────
 
 export interface RecommendedTask {
@@ -179,4 +198,16 @@ export interface UserStore {
   fetchStreak: () => Promise<void>
   updateStreak: () => Promise<void>
   markOnboarded: () => Promise<void>
+  betaModeEnabled: boolean
+  toggleBetaMode: () => void
+  requestBetaAccess: () => Promise<'ok' | 'already_requested' | 'error'>
+}
+
+// ─── AI Store ──────────────────────────────────────────────────────────────
+
+export interface AIStore {
+  recommendation: AIRecommendation | null
+  fetching: boolean
+  fetchRecommendation: (tasks: Task[]) => Promise<void>
+  clear: () => void
 }

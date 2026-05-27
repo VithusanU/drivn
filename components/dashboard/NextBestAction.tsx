@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Zap, SkipForward, Trash2, Coffee, ArrowRight } from 'lucide-react'
+import { Zap, SkipForward, Trash2, Coffee, ArrowRight, Sparkles } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
+import { useUserStore } from '@/stores/userStore'
+import { useAIStore } from '@/stores/aiStore'
 import { useTimerStore } from '@/stores/timerStore'
 import { getReasonLabel, formatEstimatedTime, getRecommendedTask } from '@/lib/engine/recommendation'
 import { formatDueDate, cn } from '@/lib/utils'
@@ -30,6 +32,15 @@ export default function NextBestAction() {
   const [skippedIds, setSkippedIds] = useState<string[]>([])
   const router = useRouter()
 
+  const betaModeEnabled = useUserStore((s) => s.betaModeEnabled)
+  const profile = useUserStore((s) => s.profile)
+  const hasBetaAccess = profile?.beta_access === true
+
+  const aiRecommendation = useAIStore((s) => s.recommendation)
+  const aiFetching = useAIStore((s) => s.fetching)
+  const fetchAIRecommendation = useAIStore((s) => s.fetchRecommendation)
+  const clearAI = useAIStore((s) => s.clear)
+
   const timerTaskId = useTimerStore((s) => s.taskId)
   const timerTaskTitle = useTimerStore((s) => s.taskTitle)
   const timerSecondsLeft = useTimerStore((s) => s.secondsLeft)
@@ -38,7 +49,19 @@ export default function NextBestAction() {
   const breakActive = useTimerStore((s) => s.breakActive)
   const breakSecondsLeft = useTimerStore((s) => s.breakSecondsLeft)
 
-  // When a timer is active, show the in-focus card instead of the normal recommendation
+  const isAIMode = betaModeEnabled && hasBetaAccess
+
+  // Fetch AI recommendation whenever beta mode is on and tasks change
+  useEffect(() => {
+    if (!isAIMode || tasks.length === 0) {
+      clearAI()
+      return
+    }
+    const filtered = tasks.filter((t) => !skippedIds.includes(t.id))
+    fetchAIRecommendation(filtered)
+  }, [isAIMode, tasks.length, skippedIds.length])
+
+  // ── Active timer card ───────────────────────────────────────────────────────
   if (timerTaskId) {
     const displaySeconds = breakActive ? breakSecondsLeft : timerSecondsLeft
     const statusLabel = breakActive
@@ -61,10 +84,7 @@ export default function NextBestAction() {
         )}
         onClick={() => router.push(`/focus/${timerTaskId}`)}
       >
-        {/* Ambient glow */}
         <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-primary/8 pointer-events-none" />
-
-        {/* Status label */}
         <div className="flex items-center justify-between mb-2">
           <p className="text-[10px] font-medium tracking-[0.15em] uppercase text-primary/60">
             {statusLabel}
@@ -76,21 +96,11 @@ export default function NextBestAction() {
             </div>
           )}
         </div>
-
-        {/* Task title */}
-        <h2 className="text-xl font-medium text-white leading-snug mb-3">
-          {timerTaskTitle}
-        </h2>
-
-        {/* Timer display */}
+        <h2 className="text-xl font-medium text-white leading-snug mb-3">{timerTaskTitle}</h2>
         <div className="flex items-center gap-2 mb-4">
           <span className={cn(
             'text-3xl font-medium tabular-nums',
-            breakActive
-              ? 'text-blue-400'
-              : timerTimeUp
-                ? 'text-destructive'
-                : 'text-white'
+            breakActive ? 'text-blue-400' : timerTimeUp ? 'text-destructive' : 'text-white'
           )}>
             {timerTimeUp ? "Time's up!" : formatTime(displaySeconds)}
           </span>
@@ -100,15 +110,11 @@ export default function NextBestAction() {
             </span>
           )}
         </div>
-
-        {/* Resume button */}
         <button
           onClick={(e) => { e.stopPropagation(); router.push(`/focus/${timerTaskId}`) }}
           className={cn(
-            'flex items-center justify-center gap-2',
-            'w-full py-3 rounded-xl text-[15px] font-medium',
-            'bg-primary text-primary-foreground',
-            'transition-all active:scale-[0.97] hover:bg-primary/90'
+            'flex items-center justify-center gap-2 w-full py-3 rounded-xl text-[15px] font-medium',
+            'bg-primary text-primary-foreground transition-all active:scale-[0.97] hover:bg-primary/90'
           )}
         >
           <ArrowRight className="w-4 h-4" />
@@ -119,9 +125,60 @@ export default function NextBestAction() {
   }
 
   const filteredTasks = tasks.filter((t) => !skippedIds.includes(t.id))
-  const recommendation = getRecommendedTask(filteredTasks)
 
-  if (!recommendation || tasks.length === 0) {
+  // ── AI loading skeleton ─────────────────────────────────────────────────────
+  if (isAIMode && aiFetching && !aiRecommendation) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={cn(
+          'relative rounded-2xl overflow-hidden',
+          'bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460]',
+          'border border-primary/20 p-5'
+        )}
+      >
+        <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-primary/8 pointer-events-none" />
+        <div className="flex items-center gap-1.5 mb-3">
+          <Sparkles className="w-3 h-3 text-primary/60 animate-pulse" />
+          <p className="text-[10px] font-medium tracking-[0.15em] uppercase text-primary/60">
+            AI is thinking…
+          </p>
+        </div>
+        <div className="space-y-2 mb-4">
+          <div className="h-6 w-3/4 rounded-lg bg-white/5 animate-pulse" />
+          <div className="h-4 w-1/2 rounded-lg bg-white/5 animate-pulse" />
+        </div>
+        <div className="h-11 rounded-xl bg-white/5 animate-pulse" />
+      </motion.div>
+    )
+  }
+
+  // ── Resolve task — AI or algorithmic ────────────────────────────────────────
+  let task = null
+  let aiReason: string | null = null
+  let reason: RecommendationReason = 'high_urgency'
+
+  if (isAIMode && aiRecommendation?.taskId) {
+    const aiTask = filteredTasks.find((t) => t.id === aiRecommendation.taskId)
+    if (aiTask) {
+      task = aiTask
+      aiReason = aiRecommendation.reason
+      // Derive a reason label from the task's own metadata for the badge colour
+      const algo = getRecommendedTask(filteredTasks)
+      if (algo?.task.id === aiTask.id) reason = algo.reason
+    }
+  }
+
+  if (!task) {
+    const recommendation = getRecommendedTask(filteredTasks)
+    if (recommendation) {
+      task = recommendation.task
+      reason = recommendation.reason
+    }
+  }
+
+  if (!task || tasks.length === 0) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -135,7 +192,6 @@ export default function NextBestAction() {
     )
   }
 
-  const { task, reason } = recommendation
   const reasonColor = REASON_COLORS[reason]
 
   return (
@@ -152,25 +208,36 @@ export default function NextBestAction() {
           'border border-primary/20 p-5'
         )}
       >
-        {/* Ambient glow */}
         <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-primary/8 pointer-events-none" />
 
-        {/* Label */}
-        <p className="text-[10px] font-medium tracking-[0.15em] uppercase text-primary/60 mb-2">
-          Next best action
-        </p>
+        {/* Label row */}
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-medium tracking-[0.15em] uppercase text-primary/60">
+            Next best action
+          </p>
+          {isAIMode && (
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/25">
+              <Sparkles className="w-2.5 h-2.5 text-primary/70" />
+              <span className="text-[10px] font-medium text-primary/70">AI</span>
+            </div>
+          )}
+        </div>
 
         {/* Task title */}
-        <h2 className="text-xl font-medium text-white leading-snug mb-3">
+        <h2 className="text-xl font-medium text-white leading-snug mb-1">
           {task.title}
         </h2>
 
+        {/* AI reason */}
+        {aiReason && (
+          <p className="text-[11px] text-white/40 mb-3 leading-relaxed">
+            {aiReason}
+          </p>
+        )}
+
         {/* Metadata badges */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          <span className={cn(
-            'text-[11px] font-medium px-2.5 py-1 rounded-full border',
-            reasonColor
-          )}>
+        <div className={cn('flex flex-wrap gap-2', aiReason ? 'mb-4' : 'mt-3 mb-4')}>
+          <span className={cn('text-[11px] font-medium px-2.5 py-1 rounded-full border', reasonColor)}>
             {getReasonLabel(reason)}
           </span>
           {task.due_date && (
@@ -188,7 +255,7 @@ export default function NextBestAction() {
         {/* Actions */}
         <div className="flex gap-2.5">
           <button
-            onClick={() => router.push(`/focus/${task.id}`)}
+            onClick={() => router.push(`/focus/${task!.id}`)}
             className={cn(
               'flex-1 flex items-center justify-center gap-2',
               'bg-primary text-primary-foreground',
@@ -200,7 +267,7 @@ export default function NextBestAction() {
             Start now
           </button>
           <button
-            onClick={() => setSkippedIds((prev) => [...prev, task.id])}
+            onClick={() => setSkippedIds((prev) => [...prev, task!.id])}
             className={cn(
               'flex items-center gap-1.5 px-4 py-3 rounded-xl',
               'bg-white/5 border border-white/8 text-white/40 text-sm',
@@ -211,7 +278,7 @@ export default function NextBestAction() {
             Skip
           </button>
           <button
-            onClick={() => deleteTask(task.id)}
+            onClick={() => deleteTask(task!.id)}
             className={cn(
               'flex items-center justify-center px-3 py-3 rounded-xl',
               'bg-white/5 border border-white/8 text-white/40',

@@ -5,10 +5,17 @@ import { createClient } from '@/lib/supabase/client'
 import { saveAccount } from '@/lib/savedAccounts'
 import type { UserStore, UserProfile, UserStreak } from '@/types'
 
-export const useUserStore = create<UserStore>((set) => ({
+const ADMIN_EMAIL = 'vithusan.business@gmail.com'
+const BETA_MODE_KEY = 'drivn:betaMode'
+
+export const useUserStore = create<UserStore>((set, get) => ({
   profile: null,
   streak: null,
   isLoading: false,
+  betaModeEnabled:
+    typeof window !== 'undefined'
+      ? localStorage.getItem(BETA_MODE_KEY) === 'true'
+      : false,
 
   fetchProfile: async () => {
     const supabase = createClient()
@@ -22,7 +29,10 @@ export const useUserStore = create<UserStore>((set) => ({
       .single()
 
     if (data) {
-      set({ profile: data as UserProfile })
+      // Owner always has beta access regardless of DB state
+      const profile = data as UserProfile
+      if (profile.email === ADMIN_EMAIL) profile.beta_access = true
+      set({ profile })
       saveAccount({ email: data.email, name: data.full_name, avatar_url: data.avatar_url })
     }
   },
@@ -42,7 +52,6 @@ export const useUserStore = create<UserStore>((set) => ({
   },
 
   updateStreak: async () => {
-    // Re-fetch streak after task completion
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -70,5 +79,33 @@ export const useUserStore = create<UserStore>((set) => ({
     set((state) => ({
       profile: state.profile ? { ...state.profile, onboarded_at: now } : null,
     }))
+  },
+
+  toggleBetaMode: () => {
+    const next = !get().betaModeEnabled
+    localStorage.setItem(BETA_MODE_KEY, String(next))
+    set({ betaModeEnabled: next })
+  },
+
+  requestBetaAccess: async () => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return 'error'
+
+    const profile = get().profile
+
+    const { error } = await supabase.from('beta_requests').insert({
+      user_id: user.id,
+      user_email: profile?.email ?? user.email ?? '',
+      user_name: profile?.full_name ?? null,
+    })
+
+    if (error) {
+      // Unique constraint violation = already requested
+      if (error.code === '23505') return 'already_requested'
+      return 'error'
+    }
+
+    return 'ok'
   },
 }))
