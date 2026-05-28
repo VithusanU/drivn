@@ -1,4 +1,4 @@
-import OpenAI from 'openai'
+import Groq from 'groq-sdk'
 import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/encryption'
 import type { ScannedTask } from '@/types'
@@ -27,10 +27,10 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Failed to decrypt API key' }, { status: 500 })
     }
   } else if (profile?.beta_access || profile?.email === ADMIN_EMAIL) {
-    if (!process.env.OPENROUTER_API_KEY) {
+    if (!process.env.GROQ_API_KEY) {
       return Response.json({ error: 'Server API key not configured' }, { status: 500 })
     }
-    apiKey = process.env.OPENROUTER_API_KEY
+    apiKey = process.env.GROQ_API_KEY
   } else {
     return Response.json({ error: 'Beta access or own API key required' }, { status: 403 })
   }
@@ -45,22 +45,14 @@ export async function POST(req: Request) {
     return Response.json({ error: 'imageBase64 and mimeType required' }, { status: 400 })
   }
 
-  const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-  if (!validTypes.includes(mimeType)) {
-    return Response.json({ error: 'Unsupported image type' }, { status: 400 })
-  }
-
-  // ── Call vision model via OpenRouter ──────────────────────────────────────
-  const client = new OpenAI({
-    apiKey,
-    baseURL: 'https://openrouter.ai/api/v1',
-  })
+  // ── Call Groq vision ──────────────────────────────────────────────────────
+  const groq = new Groq({ apiKey })
   const today = new Date().toISOString().split('T')[0]
 
   let text: string
   try {
-    const response = await client.chat.completions.create({
-      model: 'qwen/qwen2.5-vl-7b-instruct:free',
+    const response = await groq.chat.completions.create({
+      model: 'llama-3.2-11b-vision-preview',
       messages: [
         {
           role: 'user',
@@ -88,6 +80,7 @@ If no tasks are found, return an empty array: []`,
           ],
         },
       ],
+      max_tokens: 1024,
     })
     text = (response.choices[0]?.message?.content ?? '').trim()
   } catch (err: unknown) {
