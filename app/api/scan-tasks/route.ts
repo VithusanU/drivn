@@ -56,8 +56,10 @@ export async function POST(req: Request) {
   const client = new Anthropic({ apiKey })
   const today = new Date().toISOString().split('T')[0]
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5',
+  let message: Awaited<ReturnType<typeof client.messages.create>>
+  try {
+    message = await client.messages.create({
+    model: 'claude-3-5-sonnet-20241022',
     max_tokens: 1024,
     messages: [
       {
@@ -90,7 +92,11 @@ If no tasks are found, return an empty array: []`,
         ],
       },
     ],
-  })
+    })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Anthropic API error'
+    return Response.json({ error: msg }, { status: 500 })
+  }
 
   // ── Parse response ────────────────────────────────────────────────────────
   const text = message.content[0].type === 'text' ? message.content[0].text.trim() : '[]'

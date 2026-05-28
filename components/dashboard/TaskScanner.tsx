@@ -52,6 +52,30 @@ export default function TaskScanner({ scannerRef }: Props) {
     }
   }
 
+  // Resize image to max 1600px and compress to JPEG before sending
+  const resizeImage = (file: File): Promise<{ base64: string; mimeType: string }> =>
+    new Promise((resolve, reject) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        const MAX = 1600
+        let { width, height } = img
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round((height * MAX) / width); width = MAX }
+          else { width = Math.round((width * MAX) / height); height = MAX }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
+        const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1]
+        resolve({ base64, mimeType: 'image/jpeg' })
+      }
+      img.onerror = reject
+      img.src = url
+    })
+
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -62,15 +86,12 @@ export default function TaskScanner({ scannerRef }: Props) {
     setErrorMsg(null)
 
     try {
-      const arrayBuffer = await file.arrayBuffer()
-      const base64 = btoa(
-        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-      )
+      const { base64, mimeType: resizedMime } = await resizeImage(file)
 
       const res = await fetch('/api/scan-tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: resizedMime }),
       })
 
       if (!res.ok) {
