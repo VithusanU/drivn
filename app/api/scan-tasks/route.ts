@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenAI } from '@google/genai'
 import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/encryption'
 import type { ScannedTask } from '@/types'
@@ -21,14 +21,12 @@ export async function POST(req: Request) {
   let apiKey: string
 
   if (profile?.anthropic_key_encrypted) {
-    // User's own key — always allowed
     try {
       apiKey = decrypt(profile.anthropic_key_encrypted)
     } catch {
       return Response.json({ error: 'Failed to decrypt API key' }, { status: 500 })
     }
   } else if (profile?.beta_access || profile?.email === ADMIN_EMAIL) {
-    // Beta access — use server key
     if (!process.env.GEMINI_API_KEY) {
       return Response.json({ error: 'Server API key not configured' }, { status: 500 })
     }
@@ -53,20 +51,20 @@ export async function POST(req: Request) {
   }
 
   // ── Call Gemini vision ────────────────────────────────────────────────────
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+  const ai = new GoogleGenAI({ apiKey })
   const today = new Date().toISOString().split('T')[0]
 
   let text: string
   try {
-    const result = await model.generateContent([
-      {
-        inlineData: {
-          mimeType: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-          data: imageBase64,
-        },
-      },
-      `Extract every task, to-do item, or action from this image.
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash-lite',
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { inlineData: { mimeType: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp', data: imageBase64 } },
+            {
+              text: `Extract every task, to-do item, or action from this image.
 
 Today is ${today}. For each item extract:
 - title: the task text (clean it up if handwriting is messy)
@@ -79,14 +77,18 @@ Respond with ONLY a valid JSON array — no markdown, no explanation:
 [{"title":"...","due_date":null,"due_time":null,"estimated_minutes":null,"urgency":"medium"}]
 
 If no tasks are found, return an empty array: []`,
-    ])
-    text = result.response.text().trim()
+            },
+          ],
+        },
+      ],
+    })
+    text = (response.text ?? '').trim()
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'AI API error'
     return Response.json({ error: msg }, { status: 500 })
   }
 
-  // ── Strip markdown code fences if present ─────────────────────────────────
+  // ── Strip markdown fences if present ─────────────────────────────────────
   const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
 
   // ── Parse response ────────────────────────────────────────────────────────

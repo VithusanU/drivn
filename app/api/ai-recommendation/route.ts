@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenAI } from '@google/genai'
 import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/encryption'
 import type { Task } from '@/types'
@@ -26,14 +26,12 @@ export async function POST(req: Request) {
   let apiKey: string
 
   if (profile?.anthropic_key_encrypted) {
-    // User's own key — always allowed
     try {
       apiKey = decrypt(profile.anthropic_key_encrypted)
     } catch {
       return Response.json({ error: 'Failed to decrypt API key' }, { status: 500 })
     }
   } else if (profile?.beta_access || profile?.email === ADMIN_EMAIL) {
-    // Beta access — use server key
     if (!process.env.GEMINI_API_KEY) {
       return Response.json({ error: 'Server API key not configured' }, { status: 500 })
     }
@@ -102,13 +100,15 @@ ${JSON.stringify(taskList, null, 2)}
 What should I do right now?`
 
   // ── Call Gemini ─────────────────────────────────────────────────────────────
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+  const ai = new GoogleGenAI({ apiKey })
 
   let text: string
   try {
-    const geminiResult = await model.generateContent(prompt)
-    text = geminiResult.response.text().trim()
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash-lite',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    })
+    text = (response.text ?? '').trim()
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'AI API error'
     return Response.json({ error: msg }, { status: 500 })
@@ -121,11 +121,9 @@ What should I do right now?`
   let result: { taskId: string | null; reason: string; quickWinIds: string[] }
   try {
     result = JSON.parse(cleaned)
-    // Validate taskId exists in the task list
     if (result.taskId && !activeTasks.find((t) => t.id === result.taskId)) {
       result.taskId = null
     }
-    // Filter out invalid quick win IDs
     result.quickWinIds = (result.quickWinIds ?? []).filter((id) =>
       activeTasks.find((t) => t.id === id)
     )
