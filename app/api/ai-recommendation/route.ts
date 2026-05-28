@@ -1,4 +1,4 @@
-import OpenAI from 'openai'
+import Groq from 'groq-sdk'
 import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/encryption'
 import type { Task } from '@/types'
@@ -32,10 +32,10 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Failed to decrypt API key' }, { status: 500 })
     }
   } else if (profile?.beta_access || profile?.email === ADMIN_EMAIL) {
-    if (!process.env.OPENROUTER_API_KEY) {
+    if (!process.env.GROQ_API_KEY) {
       return Response.json({ error: 'Server API key not configured' }, { status: 500 })
     }
-    apiKey = process.env.OPENROUTER_API_KEY
+    apiKey = process.env.GROQ_API_KEY
   } else {
     return Response.json({ error: 'Beta access or own API key required' }, { status: 403 })
   }
@@ -101,17 +101,15 @@ ${JSON.stringify(taskList, null, 2)}
 
 What should I do right now?`
 
-  // ── Call OpenRouter ─────────────────────────────────────────────────────────
-  const client = new OpenAI({
-    apiKey,
-    baseURL: 'https://openrouter.ai/api/v1',
-  })
+  // ── Call Groq ───────────────────────────────────────────────────────────────
+  const groq = new Groq({ apiKey })
 
   let text: string
   try {
-    const response = await client.chat.completions.create({
-      model: 'meta-llama/llama-3.3-70b-instruct:free',
+    const response = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: prompt }],
+      max_tokens: 256,
     })
     text = (response.choices[0]?.message?.content ?? '').trim()
   } catch (err: unknown) {

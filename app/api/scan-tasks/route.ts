@@ -60,7 +60,7 @@ export async function POST(req: Request) {
   let text: string
   try {
     const response = await client.chat.completions.create({
-      model: 'meta-llama/llama-4-scout:free',
+      model: 'qwen/qwen2.5-vl-7b-instruct:free',
       messages: [
         {
           role: 'user',
