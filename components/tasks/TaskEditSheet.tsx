@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Check, Link2 } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
@@ -38,17 +38,21 @@ function formatTime(minutes: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
 
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 const DATE_PRESETS = [
   {
     label: 'Today',
-    value: () => new Date().toISOString().split('T')[0],
+    value: () => localDateStr(new Date()),
   },
   {
     label: 'Tomorrow',
     value: () => {
       const d = new Date()
       d.setDate(d.getDate() + 1)
-      return d.toISOString().split('T')[0]
+      return localDateStr(d)
     },
   },
   {
@@ -57,7 +61,7 @@ const DATE_PRESETS = [
       const d = new Date()
       const diff = 7 - (d.getDay() === 0 ? 7 : d.getDay())
       d.setDate(d.getDate() + diff)
-      return d.toISOString().split('T')[0]
+      return localDateStr(d)
     },
   },
 ]
@@ -80,7 +84,21 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
   const [blockedBy, setBlockedBy] = useState<string | null>(task.blocked_by ?? null)
   const [saving, setSaving] = useState(false)
 
-  const todayStr = new Date().toISOString().split('T')[0]
+  // Re-sync state from the latest task data every time the sheet opens
+  useEffect(() => {
+    if (open) {
+      setTitle(task.title)
+      setUrgency(task.urgency)
+      setDueDate(task.due_date ?? '')
+      setDueTime(task.due_time ?? '')
+      setEstimatedMinutes(task.estimated_minutes ?? null)
+      setBlockedBy(task.blocked_by ?? null)
+    }
+  }, [open])
+
+  // Use local date (not UTC) so min attribute is correct in all timezones
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
   const handleSave = async () => {
     if (!title.trim() || saving) return
