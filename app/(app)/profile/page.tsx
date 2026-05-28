@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { format } from 'date-fns'
-import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap, Key, X, Camera, Link2 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap, Key, X, Camera, Link2, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/stores/userStore'
 import { cn } from '@/lib/utils'
@@ -48,6 +49,14 @@ export default function ProfilePage() {
   const [savingKey, setSavingKey] = useState(false)
   const [keyMsg, setKeyMsg] = useState<string | null>(null)
   const [removingKey, setRemovingKey] = useState(false)
+
+  // Inline account switcher state
+  type SwitchStep = 'idle' | 'sending' | 'code' | 'verifying'
+  const [switchSheet, setSwitchSheet] = useState<SavedAccount | 'new' | null>(null)
+  const [switchStep, setSwitchStep] = useState<SwitchStep>('idle')
+  const [switchEmail, setSwitchEmail] = useState('')
+  const [switchCode, setSwitchCode] = useState('')
+  const [switchError, setSwitchError] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -114,16 +123,63 @@ export default function ProfilePage() {
     window.location.href = '/login'
   }
 
-  const handleSwitchAccount = async (account: SavedAccount) => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    window.location.href = `/login?email=${encodeURIComponent(account.email)}`
+  const openSwitchSheet = (account: SavedAccount) => {
+    setSwitchSheet(account)
+    setSwitchEmail(account.email)
+    setSwitchStep('idle')
+    setSwitchCode('')
+    setSwitchError(null)
   }
 
-  const handleAddAccount = async () => {
+  const openAddSheet = () => {
+    setSwitchSheet('new')
+    setSwitchEmail('')
+    setSwitchStep('idle')
+    setSwitchCode('')
+    setSwitchError(null)
+  }
+
+  const closeSwitchSheet = () => {
+    setSwitchSheet(null)
+    setSwitchStep('idle')
+    setSwitchCode('')
+    setSwitchError(null)
+  }
+
+  const handleSendCode = async () => {
+    const email = switchEmail.trim()
+    if (!email) return
+    setSwitchStep('sending')
+    setSwitchError(null)
     const supabase = createClient()
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
+    })
+    if (error) {
+      setSwitchError(error.message)
+      setSwitchStep('idle')
+    } else {
+      setSwitchStep('code')
+    }
+  }
+
+  const handleVerifyCode = async () => {
+    const email = switchEmail.trim()
+    const token = switchCode.trim()
+    if (!email || token.length < 6) return
+    setSwitchStep('verifying')
+    setSwitchError(null)
+    const supabase = createClient()
+    // Sign out current session first
     await supabase.auth.signOut()
-    window.location.href = '/login'
+    const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
+    if (error) {
+      setSwitchError('Invalid or expired code. Try sending a new one.')
+      setSwitchStep('code')
+    } else {
+      window.location.href = '/'
+    }
   }
 
   const handleRemoveAccount = (email: string) => {
@@ -511,7 +567,7 @@ export default function ProfilePage() {
               ) : (
                 <div className="flex items-center gap-3 shrink-0">
                   <button
-                    onClick={() => handleSwitchAccount(account)}
+                    onClick={() => openSwitchSheet(account)}
                     className="text-xs text-primary font-medium hover:text-primary/80 transition-colors"
                   >
                     Switch
@@ -529,7 +585,7 @@ export default function ProfilePage() {
           )
         })}
         <button
-          onClick={handleAddAccount}
+          onClick={openAddSheet}
           className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors"
         >
           <div className={cn(
@@ -577,6 +633,171 @@ export default function ProfilePage() {
           </div>
         ))}
       </div>
+
+      {/* ── Inline account switcher sheet ── */}
+      <AnimatePresence>
+        {switchSheet !== null && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+              onClick={closeSwitchSheet}
+            />
+
+            {/* Sheet */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className={cn(
+                'fixed bottom-0 left-0 right-0 z-50',
+                'bg-card rounded-t-3xl border-t border-border',
+                'shadow-[0_-8px_40px_rgba(0,0,0,0.3)]',
+                'px-5 pb-8 pt-4'
+              )}
+            >
+              {/* Handle */}
+              <div className="flex justify-center mb-4">
+                <div className="w-10 h-1 rounded-full bg-border" />
+              </div>
+
+              {/* Account info */}
+              {switchSheet !== 'new' && (
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center text-primary text-sm font-medium flex-shrink-0">
+                    {switchSheet.avatar_url
+                      ? <img src={switchSheet.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                      : (switchSheet.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) ?? switchSheet.email[0].toUpperCase())
+                    }
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-medium text-foreground truncate">
+                      {switchSheet.name ?? switchSheet.email}
+                    </p>
+                    <p className="text-[12px] text-muted-foreground/60 truncate">{switchSheet.email}</p>
+                  </div>
+                </div>
+              )}
+
+              {switchSheet === 'new' && (
+                <div className="mb-4">
+                  <p className="text-[15px] font-medium text-foreground mb-1">Add account</p>
+                  <p className="text-[12px] text-muted-foreground/60">Enter the email address to sign in with</p>
+                </div>
+              )}
+
+              {/* Email input — only for "add new" */}
+              {switchSheet === 'new' && switchStep !== 'code' && (
+                <input
+                  type="email"
+                  value={switchEmail}
+                  onChange={(e) => setSwitchEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendCode()}
+                  placeholder="you@example.com"
+                  autoFocus
+                  className={cn(
+                    'w-full px-4 py-3.5 rounded-2xl border text-[15px] mb-3',
+                    'bg-background text-foreground outline-none transition-all',
+                    'border-border/50 focus:border-primary/50',
+                    'placeholder:text-muted-foreground/30'
+                  )}
+                />
+              )}
+
+              {/* Code entry step */}
+              {switchStep === 'code' || switchStep === 'verifying' ? (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[13px] text-muted-foreground/70 mb-1">
+                      Enter the 6-digit code sent to
+                    </p>
+                    <p className="text-[13px] font-medium text-foreground">{switchEmail}</p>
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={switchCode}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 6)
+                      setSwitchCode(val)
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && switchCode.length === 6 && handleVerifyCode()}
+                    placeholder="000000"
+                    autoFocus
+                    className={cn(
+                      'w-full px-4 py-4 rounded-2xl border text-center text-[24px] font-mono tracking-[0.4em] mb-1',
+                      'bg-background text-foreground outline-none transition-all',
+                      'border-border/50 focus:border-primary/50',
+                      'placeholder:text-muted-foreground/20 placeholder:tracking-widest'
+                    )}
+                  />
+                  {switchError && (
+                    <p className="text-[12px] text-destructive/70">{switchError}</p>
+                  )}
+                  <button
+                    onClick={handleVerifyCode}
+                    disabled={switchCode.length < 6 || switchStep === 'verifying'}
+                    className={cn(
+                      'w-full py-4 rounded-2xl text-[15px] font-medium',
+                      'bg-primary text-primary-foreground',
+                      'transition-all active:scale-[0.98] disabled:opacity-50'
+                    )}
+                  >
+                    {switchStep === 'verifying'
+                      ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Signing in…</span>
+                      : 'Sign in'
+                    }
+                  </button>
+                  <button
+                    onClick={() => { setSwitchStep('idle'); setSwitchCode(''); setSwitchError(null) }}
+                    className="w-full py-2.5 text-[13px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                  >
+                    Resend code
+                  </button>
+                </div>
+              ) : (
+                /* Send code step */
+                <div className="space-y-3">
+                  {switchError && (
+                    <p className="text-[12px] text-destructive/70 mb-1">{switchError}</p>
+                  )}
+                  {switchSheet !== 'new' && (
+                    <p className="text-[13px] text-muted-foreground/60">
+                      We&apos;ll send a 6-digit sign-in code to this email. No password needed.
+                    </p>
+                  )}
+                  <button
+                    onClick={handleSendCode}
+                    disabled={switchStep === 'sending' || !switchEmail.trim()}
+                    className={cn(
+                      'w-full py-4 rounded-2xl text-[15px] font-medium',
+                      'bg-primary text-primary-foreground',
+                      'transition-all active:scale-[0.98] disabled:opacity-50'
+                    )}
+                  >
+                    {switchStep === 'sending'
+                      ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Sending…</span>
+                      : 'Send code'
+                    }
+                  </button>
+                  <button
+                    onClick={closeSwitchSheet}
+                    className="w-full py-2.5 text-[13px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
