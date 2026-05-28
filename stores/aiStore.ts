@@ -7,13 +7,13 @@ export const useAIStore = create<AIStore>((set) => ({
   recommendation: null,
   fetching: false,
 
-  fetchRecommendation: async (tasks: Task[]) => {
+  fetchRecommendation: async (tasks: Task[], force = false) => {
     set({ fetching: true })
     try {
       const res = await fetch('/api/ai-recommendation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tasks }),
+        body: JSON.stringify({ tasks, force }),
       })
       if (!res.ok) {
         set({ fetching: false })

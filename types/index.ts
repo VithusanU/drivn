@@ -221,6 +221,6 @@ export interface UserStore {
 export interface AIStore {
   recommendation: AIRecommendation | null
   fetching: boolean
-  fetchRecommendation: (tasks: Task[]) => Promise<void>
+  fetchRecommendation: (tasks: Task[], force?: boolean) => Promise<void>
   clear: () => void
 }

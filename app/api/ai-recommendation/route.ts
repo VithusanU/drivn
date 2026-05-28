@@ -40,16 +40,18 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Beta access or own API key required' }, { status: 403 })
   }
 
-  // ── Cache hit ───────────────────────────────────────────────────────────────
-  const cached = cache.get(user.id)
-  if (cached && cached.expiresAt > Date.now()) {
-    return new Response(cached.json, {
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
-
   // ── Parse body ──────────────────────────────────────────────────────────────
-  const { tasks } = (await req.json()) as { tasks: Task[] }
+  const { tasks, force } = (await req.json()) as { tasks: Task[]; force?: boolean }
+
+  // ── Cache hit ───────────────────────────────────────────────────────────────
+  if (!force) {
+    const cached = cache.get(user.id)
+    if (cached && cached.expiresAt > Date.now()) {
+      return new Response(cached.json, {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+  }
   const activeTasks = tasks.filter((t) => t.status === 'active')
   if (activeTasks.length === 0) {
     return Response.json({ taskId: null, reason: '', quickWinIds: [] })

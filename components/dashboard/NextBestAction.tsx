@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Zap, SkipForward, Trash2, Coffee, ArrowRight, Sparkles } from 'lucide-react'
+import { Zap, SkipForward, Trash2, Coffee, ArrowRight, Sparkles, RefreshCw } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
 import { useAIStore } from '@/stores/aiStore'
@@ -218,9 +218,19 @@ export default function NextBestAction() {
             Next best action
           </p>
           {isAIMode && (
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/25">
-              <Sparkles className="w-2.5 h-2.5 text-primary/70" />
-              <span className="text-[10px] font-medium text-primary/70">AI</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => fetchAIRecommendation(filteredTasks, true)}
+                disabled={aiFetching}
+                className="p-1 rounded-full text-white/20 hover:text-white/50 transition-colors disabled:opacity-30"
+                aria-label="Refresh AI recommendation"
+              >
+                <RefreshCw className={cn('w-3 h-3', aiFetching && 'animate-spin')} />
+              </button>
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/25">
+                <Sparkles className="w-2.5 h-2.5 text-primary/70" />
+                <span className="text-[10px] font-medium text-primary/70">AI</span>
+              </div>
             </div>
           )}
         </div>
