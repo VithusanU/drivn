@@ -117,6 +117,8 @@ export const useHabitStore = create<HabitStore>((set, get) => ({
 
       if (!error && data) {
         set((state) => ({ completions: [...state.completions, data] }))
+        // Update user streak — habit completions count toward the daily streak
+        supabase.rpc('record_habit_activity', { p_user_id: user.id })
       }
     }
   },
