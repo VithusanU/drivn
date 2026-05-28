@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/encryption'
 import type { ScannedTask } from '@/types'
@@ -29,10 +29,10 @@ export async function POST(req: Request) {
     }
   } else if (profile?.beta_access || profile?.email === ADMIN_EMAIL) {
     // Beta access — use server key
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return Response.json({ error: 'Server API key not configured' }, { status: 500 })
     }
-    apiKey = process.env.ANTHROPIC_API_KEY
+    apiKey = process.env.GEMINI_API_KEY
   } else {
     return Response.json({ error: 'Beta access or own API key required' }, { status: 403 })
   }
@@ -52,30 +52,21 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Unsupported image type' }, { status: 400 })
   }
 
-  // ── Call Claude vision ────────────────────────────────────────────────────
-  const client = new Anthropic({ apiKey })
+  // ── Call Gemini vision ────────────────────────────────────────────────────
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
   const today = new Date().toISOString().split('T')[0]
 
-  let message: Awaited<ReturnType<typeof client.messages.create>>
+  let text: string
   try {
-    message = await client.messages.create({
-    model: 'claude-3-5-sonnet-20241022',
-    max_tokens: 1024,
-    messages: [
+    const result = await model.generateContent([
       {
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-              data: imageBase64,
-            },
-          },
-          {
-            type: 'text',
-            text: `Extract every task, to-do item, or action from this image.
+        inlineData: {
+          mimeType: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+          data: imageBase64,
+        },
+      },
+      `Extract every task, to-do item, or action from this image.
 
 Today is ${today}. For each item extract:
 - title: the task text (clean it up if handwriting is messy)
@@ -88,22 +79,20 @@ Respond with ONLY a valid JSON array — no markdown, no explanation:
 [{"title":"...","due_date":null,"due_time":null,"estimated_minutes":null,"urgency":"medium"}]
 
 If no tasks are found, return an empty array: []`,
-          },
-        ],
-      },
-    ],
-    })
+    ])
+    text = result.response.text().trim()
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Anthropic API error'
+    const msg = err instanceof Error ? err.message : 'AI API error'
     return Response.json({ error: msg }, { status: 500 })
   }
 
-  // ── Parse response ────────────────────────────────────────────────────────
-  const text = message.content[0].type === 'text' ? message.content[0].text.trim() : '[]'
+  // ── Strip markdown code fences if present ─────────────────────────────────
+  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
 
+  // ── Parse response ────────────────────────────────────────────────────────
   let tasks: ScannedTask[] = []
   try {
-    const parsed = JSON.parse(text)
+    const parsed = JSON.parse(cleaned)
     if (Array.isArray(parsed)) {
       tasks = parsed
         .filter((t) => t && typeof t.title === 'string' && t.title.trim())

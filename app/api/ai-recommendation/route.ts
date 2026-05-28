@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/encryption'
 import type { Task } from '@/types'
@@ -34,10 +34,10 @@ export async function POST(req: Request) {
     }
   } else if (profile?.beta_access || profile?.email === ADMIN_EMAIL) {
     // Beta access — use server key
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return Response.json({ error: 'Server API key not configured' }, { status: 500 })
     }
-    apiKey = process.env.ANTHROPIC_API_KEY
+    apiKey = process.env.GEMINI_API_KEY
   } else {
     return Response.json({ error: 'Beta access or own API key required' }, { status: 403 })
   }
@@ -77,13 +77,7 @@ export async function POST(req: Request) {
     created_at: t.created_at,
   }))
 
-  // ── Call Claude ─────────────────────────────────────────────────────────────
-  const client = new Anthropic({ apiKey })
-
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 256,
-    system: `You are the priority engine for drivn, a focus and productivity app.
+  const prompt = `You are the priority engine for drivn, a focus and productivity app.
 Given a list of tasks, identify the single best one to work on RIGHT NOW plus up to 3 quick wins.
 
 Hard rules:
@@ -98,21 +92,35 @@ Soft rules:
 - Cluster related tasks as quick wins when possible (e.g. all phone calls together)
 
 Respond with ONLY valid JSON — no markdown, no explanation:
-{"taskId":"<id or null>","reason":"<max 12 words>","quickWinIds":["<id>"]}`,
-    messages: [
-      {
-        role: 'user',
-        content: `Current time: ${timeContext}\n\nTasks:\n${JSON.stringify(taskList, null, 2)}\n\nWhat should I do right now?`,
-      },
-    ],
-  })
+{"taskId":"<id or null>","reason":"<max 12 words>","quickWinIds":["<id>"]}
+
+Current time: ${timeContext}
+
+Tasks:
+${JSON.stringify(taskList, null, 2)}
+
+What should I do right now?`
+
+  // ── Call Gemini ─────────────────────────────────────────────────────────────
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+
+  let text: string
+  try {
+    const geminiResult = await model.generateContent(prompt)
+    text = geminiResult.response.text().trim()
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'AI API error'
+    return Response.json({ error: msg }, { status: 500 })
+  }
+
+  // Strip markdown fences if present
+  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
 
   // ── Parse response ──────────────────────────────────────────────────────────
-  const text = message.content[0].type === 'text' ? message.content[0].text.trim() : '{}'
-
   let result: { taskId: string | null; reason: string; quickWinIds: string[] }
   try {
-    result = JSON.parse(text)
+    result = JSON.parse(cleaned)
     // Validate taskId exists in the task list
     if (result.taskId && !activeTasks.find((t) => t.id === result.taskId)) {
       result.taskId = null

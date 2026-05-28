@@ -104,7 +104,7 @@ export default function ProfilePage() {
       setShowKeyInput(false)
       setKeyMsg(null)
     } else if (result === 'invalid') {
-      setKeyMsg('Key must start with sk-ant-')
+      setKeyMsg('Key must be a Google Gemini API key (starts with AIza)')
     } else {
       setKeyMsg('Failed to save. Try again.')
     }
@@ -464,7 +464,7 @@ export default function ProfilePage() {
                     type="password"
                     value={keyInput}
                     onChange={(e) => setKeyInput(e.target.value)}
-                    placeholder="sk-ant-api03-..."
+                    placeholder="AIzaSy..."
                     autoComplete="off"
                     className={cn(
                       'w-full px-3 py-2 rounded-xl border text-[12px] font-mono',
@@ -499,7 +499,7 @@ export default function ProfilePage() {
                 /* Prompt to add */
                 <div className="mt-1">
                   <p className="text-[11px] text-muted-foreground/50 mb-2">
-                    Use your own Anthropic key — unlocks AI for you regardless of beta access.
+                    Use your own Google Gemini API key — unlocks AI for you instantly, no approval needed.
                   </p>
                   <button
                     onClick={() => setShowKeyInput(true)}
@@ -882,8 +882,8 @@ const GUIDE_ITEMS = [
     steps: [
       'AI mode upgrades your Next Best Action and Quick Wins from rule-based to semantically aware — Claude reads your task titles and reasons about what actually matters most right now.',
       'To unlock it: scroll to the Beta section on this page and tap "Request access" — you\'ll be approved manually.',
-      'Alternatively, add your own Anthropic API key in the "Your API key" section — this unlocks AI mode instantly with no approval needed and uses your own usage quota.',
-      'Get a free API key at console.anthropic.com. Claude Haiku (the model drivn uses) costs roughly $0.001 per recommendation — effectively free for personal use.',
+      'Alternatively, add your own Google Gemini API key in the "Your API key" section — this unlocks AI mode instantly with no approval needed.',
+      'Get a free Gemini API key at aistudio.google.com — click "Get API key". The free tier (1,500 requests/day) is more than enough for personal use.',
       'Once you have access, toggle AI mode On in the Beta section. You can switch it off anytime to go back to the algorithmic ranking.',
     ],
   },

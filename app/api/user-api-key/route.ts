@@ -8,8 +8,8 @@ export async function POST(req: Request) {
 
   const { key } = (await req.json()) as { key: string }
 
-  if (!key || !key.startsWith('sk-ant-')) {
-    return Response.json({ error: 'Invalid key format — must start with sk-ant-' }, { status: 400 })
+  if (!key || !key.startsWith('AIza')) {
+    return Response.json({ error: 'Invalid key format — must be a Google Gemini API key starting with AIza' }, { status: 400 })
   }
 
   let encrypted: string
