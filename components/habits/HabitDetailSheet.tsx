@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -30,6 +31,9 @@ interface HabitDetailSheetProps {
 }
 
 export default function HabitDetailSheet({ habit, onConfirm, onClose }: HabitDetailSheetProps) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
   const unit = habit.detail_config?.unit ?? 'ml'
   const maxAmount = habit.detail_config?.target ?? habit.detail_config?.max ?? (unit === 'glasses' ? 8 : unit === 'oz' ? 64 : 2000)
   const isEditing = habit.completedToday
@@ -68,8 +72,8 @@ export default function HabitDetailSheet({ habit, onConfirm, onClose }: HabitDet
       ? selectedSections.length > 0
       : true
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm" onClick={onClose}>
+  const sheet = (
+    <div className="fixed inset-0 z-[100] flex items-end bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <motion.div
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
@@ -79,7 +83,7 @@ export default function HabitDetailSheet({ habit, onConfirm, onClose }: HabitDet
         className={cn(
           'w-full max-w-md mx-auto',
           'rounded-t-3xl bg-card border-t border-border',
-          'px-5 pt-5 pb-10'
+          'px-5 pt-5 pb-32'
         )}
       >
         {/* Handle */}
@@ -234,4 +238,6 @@ export default function HabitDetailSheet({ habit, onConfirm, onClose }: HabitDet
       </motion.div>
     </div>
   )
+
+  return mounted ? createPortal(sheet, document.body) : null
 }
