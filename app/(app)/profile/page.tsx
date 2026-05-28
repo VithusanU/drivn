@@ -111,19 +111,19 @@ export default function ProfilePage() {
   const handleSignOut = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push('/login')
+    window.location.href = '/login'
   }
 
   const handleSwitchAccount = async (account: SavedAccount) => {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push(`/login?email=${encodeURIComponent(account.email)}`)
+    window.location.href = `/login?email=${encodeURIComponent(account.email)}`
   }
 
   const handleAddAccount = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push('/login')
+    window.location.href = '/login'
   }
 
   const handleRemoveAccount = (email: string) => {
