@@ -104,7 +104,7 @@ export default function ProfilePage() {
       setShowKeyInput(false)
       setKeyMsg(null)
     } else if (result === 'invalid') {
-      setKeyMsg('Key must be a Google Gemini API key (starts with AIza)')
+      setKeyMsg('Key must be an OpenRouter API key (starts with sk-or-)')
     } else {
       setKeyMsg('Failed to save. Try again.')
     }
@@ -464,7 +464,7 @@ export default function ProfilePage() {
                     type="password"
                     value={keyInput}
                     onChange={(e) => setKeyInput(e.target.value)}
-                    placeholder="AIzaSy..."
+                    placeholder="sk-or-..."
                     autoComplete="off"
                     className={cn(
                       'w-full px-3 py-2 rounded-xl border text-[12px] font-mono',
@@ -499,7 +499,7 @@ export default function ProfilePage() {
                 /* Prompt to add */
                 <div className="mt-1">
                   <p className="text-[11px] text-muted-foreground/50 mb-2">
-                    Use your own Google Gemini API key — unlocks AI for you instantly, no approval needed.
+                    Use your own OpenRouter API key — unlocks AI for you instantly, no approval needed.
                   </p>
                   <button
                     onClick={() => setShowKeyInput(true)}
@@ -882,8 +882,8 @@ const GUIDE_ITEMS = [
     steps: [
       'AI mode upgrades your Next Best Action and Quick Wins from rule-based to semantically aware — Claude reads your task titles and reasons about what actually matters most right now.',
       'To unlock it: scroll to the Beta section on this page and tap "Request access" — you\'ll be approved manually.',
-      'Alternatively, add your own Google Gemini API key in the "Your API key" section — this unlocks AI mode instantly with no approval needed.',
-      'Get a free Gemini API key at aistudio.google.com — click "Get API key". The free tier (1,500 requests/day) is more than enough for personal use.',
+      'Alternatively, add your own OpenRouter API key in the "Your API key" section — this unlocks AI mode instantly with no approval needed.',
+      'Get a free OpenRouter API key at openrouter.ai — sign up and go to Keys. Free tier is more than enough for personal use.',
       'Once you have access, toggle AI mode On in the Beta section. You can switch it off anytime to go back to the algorithmic ranking.',
     ],
   },

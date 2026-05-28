@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai'
+import OpenAI from 'openai'
 import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/encryption'
 import type { Task } from '@/types'
@@ -32,10 +32,10 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Failed to decrypt API key' }, { status: 500 })
     }
   } else if (profile?.beta_access || profile?.email === ADMIN_EMAIL) {
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.OPENROUTER_API_KEY) {
       return Response.json({ error: 'Server API key not configured' }, { status: 500 })
     }
-    apiKey = process.env.GEMINI_API_KEY
+    apiKey = process.env.OPENROUTER_API_KEY
   } else {
     return Response.json({ error: 'Beta access or own API key required' }, { status: 403 })
   }
@@ -52,6 +52,7 @@ export async function POST(req: Request) {
       })
     }
   }
+
   const activeTasks = tasks.filter((t) => t.status === 'active')
   if (activeTasks.length === 0) {
     return Response.json({ taskId: null, reason: '', quickWinIds: [] })
@@ -89,7 +90,6 @@ Soft rules:
 - Read task titles semantically — a bug fix affecting users outweighs a cosmetic change even with equal metadata
 - Consider downstream impact: completing a blocker that unblocks 2+ tasks is often best
 - Factor in time of day and day of week for energy-matching
-- Cluster related tasks as quick wins when possible (e.g. all phone calls together)
 
 Respond with ONLY valid JSON — no markdown, no explanation:
 {"taskId":"<id or null>","reason":"<max 12 words>","quickWinIds":["<id>"]}
@@ -101,16 +101,19 @@ ${JSON.stringify(taskList, null, 2)}
 
 What should I do right now?`
 
-  // ── Call Gemini ─────────────────────────────────────────────────────────────
-  const ai = new GoogleGenAI({ apiKey })
+  // ── Call OpenRouter ─────────────────────────────────────────────────────────
+  const client = new OpenAI({
+    apiKey,
+    baseURL: 'https://openrouter.ai/api/v1',
+  })
 
   let text: string
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-lite',
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    const response = await client.chat.completions.create({
+      model: 'meta-llama/llama-3.3-70b-instruct:free',
+      messages: [{ role: 'user', content: prompt }],
     })
-    text = (response.text ?? '').trim()
+    text = (response.choices[0]?.message?.content ?? '').trim()
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'AI API error'
     return Response.json({ error: msg }, { status: 500 })

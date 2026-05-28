@@ -8,8 +8,8 @@ export async function POST(req: Request) {
 
   const { key } = (await req.json()) as { key: string }
 
-  if (!key || !key.startsWith('AIza')) {
-    return Response.json({ error: 'Invalid key format — must be a Google Gemini API key starting with AIza' }, { status: 400 })
+  if (!key || !key.startsWith('sk-or-')) {
+    return Response.json({ error: 'Invalid key format — must be an OpenRouter API key starting with sk-or-' }, { status: 400 })
   }
 
   let encrypted: string

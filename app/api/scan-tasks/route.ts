@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai'
+import OpenAI from 'openai'
 import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/encryption'
 import type { ScannedTask } from '@/types'
@@ -27,10 +27,10 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Failed to decrypt API key' }, { status: 500 })
     }
   } else if (profile?.beta_access || profile?.email === ADMIN_EMAIL) {
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.OPENROUTER_API_KEY) {
       return Response.json({ error: 'Server API key not configured' }, { status: 500 })
     }
-    apiKey = process.env.GEMINI_API_KEY
+    apiKey = process.env.OPENROUTER_API_KEY
   } else {
     return Response.json({ error: 'Beta access or own API key required' }, { status: 403 })
   }
@@ -50,20 +50,27 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Unsupported image type' }, { status: 400 })
   }
 
-  // ── Call Gemini vision ────────────────────────────────────────────────────
-  const ai = new GoogleGenAI({ apiKey })
+  // ── Call vision model via OpenRouter ──────────────────────────────────────
+  const client = new OpenAI({
+    apiKey,
+    baseURL: 'https://openrouter.ai/api/v1',
+  })
   const today = new Date().toISOString().split('T')[0]
 
   let text: string
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-lite',
-      contents: [
+    const response = await client.chat.completions.create({
+      model: 'google/gemini-2.0-flash-exp:free',
+      messages: [
         {
           role: 'user',
-          parts: [
-            { inlineData: { mimeType: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp', data: imageBase64 } },
+          content: [
             {
+              type: 'image_url',
+              image_url: { url: `data:${mimeType};base64,${imageBase64}` },
+            },
+            {
+              type: 'text',
               text: `Extract every task, to-do item, or action from this image.
 
 Today is ${today}. For each item extract:
@@ -82,7 +89,7 @@ If no tasks are found, return an empty array: []`,
         },
       ],
     })
-    text = (response.text ?? '').trim()
+    text = (response.choices[0]?.message?.content ?? '').trim()
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'AI API error'
     return Response.json({ error: msg }, { status: 500 })
