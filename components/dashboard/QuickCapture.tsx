@@ -74,6 +74,7 @@ export default function QuickCapture() {
   const [value, setValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [showError, setShowError] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
   const [urgency, setUrgency] = useState<TaskUrgency>('medium')
@@ -109,7 +110,7 @@ export default function QuickCapture() {
     if (!trimmed || saving) return
 
     setSaving(true)
-    await createTask({
+    const result = await createTask({
       title: trimmed,
       urgency,
       due_date: dueDate || null,
@@ -117,13 +118,19 @@ export default function QuickCapture() {
       estimated_minutes: estimatedMinutes,
       blocked_by: blockedBy,
     })
-    setValue('')
-    resetOptions()
-    setExpanded(false)
     setSaving(false)
-    setShowSuccess(true)
-    setTimeout(() => setShowSuccess(false), 1500)
-    inputRef.current?.focus()
+
+    if (result) {
+      setValue('')
+      resetOptions()
+      setExpanded(false)
+      setShowSuccess(true)
+      setTimeout(() => setShowSuccess(false), 1500)
+      inputRef.current?.focus()
+    } else {
+      setShowError(true)
+      setTimeout(() => setShowError(false), 2500)
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -558,6 +565,18 @@ export default function QuickCapture() {
               className="text-[12px] text-drivn-green/70 flex-shrink-0"
             >
               Added ✓
+            </motion.span>
+          )}
+
+          {showError && (
+            <motion.span
+              key="error"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="text-[12px] text-destructive/70 flex-shrink-0"
+            >
+              Failed ✕
             </motion.span>
           )}
         </AnimatePresence>
