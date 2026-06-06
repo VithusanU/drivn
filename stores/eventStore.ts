@@ -119,13 +119,14 @@ export const useEventStore = create<EventStore>((set, get) => ({
     }))
   },
 
-  getUpcomingEvents: (days = 7) => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const future = new Date(today)
+  getUpcomingEvents: (days = 30) => {
+    // Use local date parts to avoid UTC timezone shifting dates
+    const now = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+    const future = new Date(now)
     future.setDate(future.getDate() + days)
-    const todayStr = today.toISOString().split('T')[0]
-    const futureStr = future.toISOString().split('T')[0]
+    const futureStr = `${future.getFullYear()}-${pad(future.getMonth() + 1)}-${pad(future.getDate())}`
     return get().events.filter(
       (e) => e.event_date >= todayStr && e.event_date <= futureStr
     )

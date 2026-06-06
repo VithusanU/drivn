@@ -17,14 +17,25 @@ const CATEGORY_EMOJI: Record<EventCategory, string> = {
 }
 
 function getCountdown(eventDate: string): string {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const target = new Date(eventDate)
-  target.setHours(0, 0, 0, 0)
-  const diff = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-  if (diff === 0) return 'Today'
-  if (diff === 1) return 'Tomorrow'
-  return `In ${diff} days`
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`
+
+  if (eventDate === todayStr) return 'Today'
+  if (eventDate === tomorrowStr) return 'Tomorrow'
+
+  // Calculate diff in days using local dates
+  const [y, m, d] = eventDate.split('-').map(Number)
+  const target = new Date(y, m - 1, d)
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const diff = Math.round((target.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24))
+  if (diff < 7) return `In ${diff} days`
+  if (diff < 14) return 'Next week'
+  const weeks = Math.round(diff / 7)
+  return `In ${weeks} weeks`
 }
 
 function formatEventTime(time: string | null): string {
@@ -87,14 +98,14 @@ export default function UpcomingEvents() {
   const [addOpen, setAddOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
 
-  const upcoming = getUpcomingEvents(7)
+  const upcoming = getUpcomingEvents(30)
 
   return (
     <>
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground">
-            Upcoming this week
+            Upcoming
           </p>
           <button
             onClick={() => setAddOpen(true)}
