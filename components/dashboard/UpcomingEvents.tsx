@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Calendar, ChevronRight } from 'lucide-react'
+import { Plus, Calendar, ChevronRight, CalendarPlus } from 'lucide-react'
 import { useEventStore } from '@/stores/eventStore'
 import AddEventSheet from '@/components/events/AddEventSheet'
 import { cn } from '@/lib/utils'
@@ -27,7 +27,6 @@ function getCountdown(eventDate: string): string {
   if (eventDate === todayStr) return 'Today'
   if (eventDate === tomorrowStr) return 'Tomorrow'
 
-  // Calculate diff in days using local dates
   const [y, m, d] = eventDate.split('-').map(Number)
   const target = new Date(y, m - 1, d)
   const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -47,8 +46,55 @@ function formatEventTime(time: string | null): string {
 }
 
 function formatEventDate(dateStr: string): string {
-  const date = new Date(dateStr)
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
   return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+// Download a single event as an .ics file
+function downloadICS(event: CalendarEvent) {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const now = new Date()
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}T${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}Z`
+
+  const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
+
+  const [ey, em, ed] = event.event_date.split('-')
+  const hasTime = !!event.event_time
+  const dtstart = hasTime
+    ? `DTSTART:${ey}${em}${ed}T${event.event_time!.replace(':', '')}00`
+    : `DTSTART;VALUE=DATE:${ey}${em}${ed}`
+
+  const nextD = new Date(Number(ey), Number(em) - 1, Number(ed) + 1)
+  const dtend = hasTime
+    ? `DTEND:${ey}${em}${ed}T${event.event_time!.replace(':', '')}00`
+    : `DTEND;VALUE=DATE:${nextD.getFullYear()}${pad(nextD.getMonth() + 1)}${pad(nextD.getDate())}`
+
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Drivn//Drivn Events//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${event.id}@getdrivn.app`,
+    `DTSTAMP:${stamp}`,
+    dtstart,
+    dtend,
+    `SUMMARY:${esc(event.title)}`,
+    event.notes ? `DESCRIPTION:${esc(event.notes)}` : '',
+    `CATEGORIES:${event.category.toUpperCase()}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].filter(Boolean).join('\r\n')
+
+  const blob = new Blob([lines], { type: 'text/calendar' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${event.title.toLowerCase().replace(/\s+/g, '-')}.ics`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 interface EventRowProps {
@@ -62,21 +108,24 @@ function EventRow({ event, onEdit }: EventRowProps) {
   const isTomorrow = countdown === 'Tomorrow'
 
   return (
-    <button
-      onClick={() => onEdit(event)}
-      className={cn(
-        'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-left',
-        'bg-card/50 border border-border/50 hover:bg-card hover:border-border active:scale-[0.99]'
-      )}
-    >
-      <span className="text-lg flex-shrink-0">{CATEGORY_EMOJI[event.category]}</span>
-      <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-medium text-foreground truncate">{event.title}</p>
-        <p className="text-[11px] text-muted-foreground/50 mt-0.5">
-          {formatEventDate(event.event_date)}
-          {event.event_time && ` · ${formatEventTime(event.event_time)}`}
-        </p>
-      </div>
+    <div className={cn(
+      'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl',
+      'bg-card/50 border border-border/50'
+    )}>
+      <button
+        onClick={() => onEdit(event)}
+        className="flex items-center gap-3 flex-1 min-w-0 text-left"
+      >
+        <span className="text-lg flex-shrink-0">{CATEGORY_EMOJI[event.category]}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-medium text-foreground truncate">{event.title}</p>
+          <p className="text-[11px] text-muted-foreground/50 mt-0.5">
+            {formatEventDate(event.event_date)}
+            {event.event_time && ` · ${formatEventTime(event.event_time)}`}
+          </p>
+        </div>
+      </button>
+
       <span className={cn(
         'text-[11px] font-medium px-2.5 py-1 rounded-full border flex-shrink-0',
         isToday
@@ -87,8 +136,16 @@ function EventRow({ event, onEdit }: EventRowProps) {
       )}>
         {countdown}
       </span>
-      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 flex-shrink-0" />
-    </button>
+
+      {/* Add to device calendar */}
+      <button
+        onClick={(e) => { e.stopPropagation(); downloadICS(event) }}
+        aria-label="Add to calendar"
+        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/30 hover:text-primary/60 transition-colors"
+      >
+        <CalendarPlus className="w-3.5 h-3.5" />
+      </button>
+    </div>
   )
 }
 
@@ -126,7 +183,7 @@ export default function UpcomingEvents() {
             )}
           >
             <Calendar className="w-4 h-4" />
-            No events this week — add one
+            No upcoming events — add one
           </button>
         ) : (
           <AnimatePresence>

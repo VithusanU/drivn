@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap, Key, X, Camera, Link2, Loader2, Info } from 'lucide-react'
+import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap, Key, X, Camera, Link2, Loader2, Info, CalendarDays, Copy } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/stores/userStore'
 import { cn } from '@/lib/utils'
@@ -35,6 +35,9 @@ export default function ProfilePage() {
   const [savingTime, setSavingTime] = useState(false)
   const [openGuide, setOpenGuide] = useState<string | null>(null)
   const [showChangelog, setShowChangelog] = useState(false)
+  const [calUrl, setCalUrl] = useState<string | null>(null)
+  const [calLoading, setCalLoading] = useState(false)
+  const [calCopied, setCalCopied] = useState(false)
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([])
 
   // Beta access state
@@ -635,6 +638,72 @@ export default function ProfilePage() {
             )}
           </div>
         ))}
+      </div>
+
+      {/* Calendar sync */}
+      <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3 mt-8">
+        Calendar
+      </p>
+      <div className="rounded-2xl border border-border overflow-hidden">
+        <div className="px-4 py-3.5">
+          <div className="flex items-start gap-3">
+            <CalendarDays className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm text-foreground/80">Sync to your calendar</p>
+              <p className="text-[11px] text-muted-foreground/50 mt-0.5 mb-3">
+                Subscribe to a live feed — your events appear in iOS Calendar, Google Calendar, or Outlook and stay in sync automatically.
+              </p>
+
+              {calUrl ? (
+                <div className="space-y-2">
+                  <div className={cn(
+                    'flex items-center gap-2 px-3 py-2 rounded-xl border border-border/50',
+                    'bg-secondary/50'
+                  )}>
+                    <p className="text-[11px] font-mono text-muted-foreground/70 flex-1 truncate">{calUrl}</p>
+                    <button
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(calUrl)
+                        setCalCopied(true)
+                        setTimeout(() => setCalCopied(false), 2000)
+                      }}
+                      className="flex-shrink-0 flex items-center gap-1 text-[11px] text-primary/70 hover:text-primary transition-colors"
+                    >
+                      {calCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                      {calCopied ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <div className="space-y-1 text-[11px] text-muted-foreground/50">
+                    <p>📱 <strong>iPhone:</strong> Calendar app → Accounts → Add Account → Other → Add Subscribed Calendar → paste URL</p>
+                    <p>🗓 <strong>Google:</strong> calendar.google.com → Other calendars → From URL → paste URL</p>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={async () => {
+                    setCalLoading(true)
+                    try {
+                      const res = await fetch('/api/calendar/token')
+                      const data = await res.json()
+                      if (data.url) setCalUrl(data.url)
+                    } finally {
+                      setCalLoading(false)
+                    }
+                  }}
+                  disabled={calLoading}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium',
+                    'bg-primary/10 border border-primary/30 text-primary',
+                    'hover:bg-primary/15 transition-colors disabled:opacity-50'
+                  )}
+                >
+                  <CalendarDays className="w-3 h-3" />
+                  {calLoading ? 'Generating…' : 'Get subscription link'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Version */}
