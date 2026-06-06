@@ -35,10 +35,7 @@ export default function TaskGroups() {
   const hasMore = useTaskStore((s) => s.hasMore)
   const groups = getTasksByGroup()
 
-  const totalActive = tasks.filter((t) => t.status === 'active').length
-  if (totalActive === 0) return null
-
-  // ── Search filter ────────────────────────────────────────────────────────
+  // ── Search filter — must be above any early return (Rules of Hooks) ──────
   const query = search.trim().toLowerCase()
   const filteredTasks = useMemo(() => {
     if (!query) return tasks.filter((t) => t.status === 'active')
@@ -46,6 +43,9 @@ export default function TaskGroups() {
       (t) => t.status === 'active' && t.title.toLowerCase().includes(query)
     )
   }, [tasks, query])
+
+  const totalActive = tasks.filter((t) => t.status === 'active').length
+  if (totalActive === 0) return null
 
   // ── Flat view: actionable vs blocked ────────────────────────────────────
   const blockedTasks = filteredTasks.filter((t) => t.blocked_by && tasks.find((b) => b.id === t.blocked_by && b.status === 'active'))
