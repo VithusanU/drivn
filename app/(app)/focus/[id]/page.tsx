@@ -42,6 +42,8 @@ export default function FocusModePage({ params }: FocusModePageProps) {
 
   const isLoading = useTaskStore((s) => s.isLoading)
   const hasFetched = useTaskStore((s) => s.hasFetched)
+  const timerTimeUp = useTimerStore((s) => s.timeUp)
+  const addTime = useTimerStore((s) => s.addTime)
 
   const [completing, setCompleting] = useState(false)
   const [completed, setCompleted] = useState(false)
@@ -186,6 +188,33 @@ export default function FocusModePage({ params }: FocusModePageProps) {
                 onComplete={handleComplete}
                 taskTitle={task.title}
               />
+            ) : timerTimeUp ? (
+              /* Timer expired but task has no estimate — show inline time's up UI */
+              <div className="w-full max-w-xs mx-auto rounded-2xl border border-border bg-card p-5 text-center">
+                <p className="text-[15px] font-medium text-foreground mb-1">Time&apos;s up!</p>
+                <p className="text-[12px] text-muted-foreground mb-4">Need more time?</p>
+                <div className="grid grid-cols-4 gap-2 mb-3">
+                  {[5, 10, 15, 30].map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => addTime(m)}
+                      className={cn(
+                        'py-2 rounded-xl border border-border text-[12px] font-medium',
+                        'text-muted-foreground hover:text-primary hover:border-primary/40 transition-all'
+                      )}
+                    >
+                      +{m}m
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={handleComplete}
+                  disabled={completing}
+                  className="w-full py-2.5 rounded-xl text-[13px] font-medium bg-drivn-green text-white hover:opacity-90 transition-all disabled:opacity-50"
+                >
+                  {completing ? 'Completing…' : 'Complete task'}
+                </button>
+              </div>
             ) : (
               <div className={cn(
                 'w-[160px] h-[160px] mx-auto rounded-full',
