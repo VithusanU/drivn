@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Check, Link2, Repeat } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { cn } from '@/lib/utils'
-import type { Task, TaskUrgency, TaskRecurrence } from '@/types'
+import type { Task, TaskUrgency, TaskRecurrence, TaskCategory } from '@/types'
+import { TASK_CATEGORIES } from '@/types'
 
 const RECURRENCE_OPTIONS: { value: TaskRecurrence; label: string }[] = [
   { value: 'none', label: 'No repeat' },
@@ -91,6 +92,7 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(task.estimated_minutes ?? null)
   const [blockedBy, setBlockedBy] = useState<string | null>(task.blocked_by ?? null)
   const [recurrence, setRecurrence] = useState<TaskRecurrence>((task.recurrence as TaskRecurrence) ?? 'none')
+  const [category, setCategory] = useState<TaskCategory>((task.category as TaskCategory) ?? 'other')
   const [saving, setSaving] = useState(false)
 
   // Re-sync state from the latest task data every time the sheet opens
@@ -104,6 +106,7 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
       setEstimatedMinutes(task.estimated_minutes ?? null)
       setBlockedBy(task.blocked_by ?? null)
       setRecurrence((task.recurrence as TaskRecurrence) ?? 'none')
+      setCategory((task.category as TaskCategory) ?? 'other')
     }
   }, [open])
 
@@ -123,6 +126,7 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
       estimated_minutes: estimatedMinutes,
       blocked_by: blockedBy,
       recurrence,
+      category,
     })
     setSaving(false)
     onClose()
@@ -316,6 +320,30 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
                   Clear
                 </button>
               )}
+            </div>
+
+            {/* Category */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground/60">
+                Category
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                {TASK_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.value}
+                    onClick={() => setCategory(cat.value)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-medium transition-all',
+                      category === cat.value
+                        ? 'bg-primary/10 border-primary/40 text-primary'
+                        : 'border-border/50 text-muted-foreground/50 hover:border-primary/30 hover:text-primary/60'
+                    )}
+                  >
+                    <span>{cat.emoji}</span>
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Recurrence */}

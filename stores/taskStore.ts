@@ -109,6 +109,15 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     // Record streak update via server function
     await supabase.rpc('record_task_completion', { p_user_id: user.id })
 
+    // Log activity for friends feed (fire-and-forget)
+    if (task) {
+      supabase.from('friend_activities').insert({
+        user_id: user.id,
+        type: 'task_completed',
+        task_title: task.title,
+      }).then().catch(() => {})
+    }
+
     // Remove from local state
     set((state) => ({
       tasks: state.tasks.filter((t) => t.id !== id),

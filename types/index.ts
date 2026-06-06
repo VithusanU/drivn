@@ -20,6 +20,15 @@ export type TaskStatus = 'active' | 'completed' | 'archived'
 export type TaskUrgency = 'high' | 'medium' | 'low'
 export type TaskGroup = 'now' | 'soon' | 'later'
 export type TaskRecurrence = 'none' | 'daily' | 'weekly' | 'monthly'
+export type TaskCategory = 'work' | 'personal' | 'health' | 'learning' | 'other'
+
+export const TASK_CATEGORIES: { value: TaskCategory; label: string; emoji: string }[] = [
+  { value: 'work',     label: 'Work',     emoji: '💼' },
+  { value: 'personal', label: 'Personal', emoji: '🏠' },
+  { value: 'health',   label: 'Health',   emoji: '💪' },
+  { value: 'learning', label: 'Learning', emoji: '📚' },
+  { value: 'other',    label: 'Other',    emoji: '📌' },
+]
 
 export interface Task {
   id: string
@@ -32,6 +41,7 @@ export interface Task {
   due_time: string | null
   estimated_minutes: number | null
   recurrence: TaskRecurrence
+  category: TaskCategory | null
   created_at: string
   updated_at: string
   completed_at: string | null
@@ -48,6 +58,7 @@ export interface CreateTaskInput {
   estimated_minutes?: number | null
   blocked_by?: string | null
   recurrence?: TaskRecurrence
+  category?: TaskCategory | null
 }
 
 export interface UpdateTaskInput {

@@ -6,7 +6,8 @@ import { ChevronDown, Search, X, List, Layers, CheckCircle2, Archive, Lock } fro
 import { useTaskStore } from '@/stores/taskStore'
 import TaskItem from '@/components/tasks/TaskItem'
 import { cn } from '@/lib/utils'
-import type { Task, TaskGroup } from '@/types'
+import type { Task, TaskGroup, TaskCategory } from '@/types'
+import { TASK_CATEGORIES } from '@/types'
 
 const GROUP_LABELS: Record<TaskGroup, string> = {
   now: 'Now',
@@ -24,6 +25,7 @@ export default function TaskGroups() {
   })
   const [viewMode, setViewMode] = useState<ViewMode>('grouped')
   const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<TaskCategory | null>(null)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkWorking, setBulkWorking] = useState(false)
@@ -38,17 +40,21 @@ export default function TaskGroups() {
   // ── Search filter — must be above any early return (Rules of Hooks) ──────
   const query = search.trim().toLowerCase()
   const filteredTasks = useMemo(() => {
-    if (!query) return tasks.filter((t) => t.status === 'active')
-    return tasks.filter(
-      (t) => t.status === 'active' && (
-        t.title.toLowerCase().includes(query) ||
-        (t.description ?? '').toLowerCase().includes(query)
-      )
-    )
-  }, [tasks, query])
+    return tasks.filter((t) => {
+      if (t.status !== 'active') return false
+      if (categoryFilter && (t.category ?? 'other') !== categoryFilter) return false
+      if (!query) return true
+      return t.title.toLowerCase().includes(query) || (t.description ?? '').toLowerCase().includes(query)
+    })
+  }, [tasks, query, categoryFilter])
 
   const totalActive = tasks.filter((t) => t.status === 'active').length
   if (totalActive === 0) return null
+
+  // Only show category filters for categories that actually have tasks
+  const usedCategories = TASK_CATEGORIES.filter((cat) =>
+    tasks.some((t) => t.status === 'active' && (t.category ?? 'other') === cat.value)
+  )
 
   // ── Flat view: actionable vs blocked ────────────────────────────────────
   const blockedTasks = filteredTasks.filter((t) => t.blocked_by && tasks.find((b) => b.id === t.blocked_by && b.status === 'active'))
@@ -137,6 +143,38 @@ export default function TaskGroups() {
           </button>
         )}
       </div>
+
+      {/* Category filter pills (only if multiple categories used) */}
+      {usedCategories.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-4 px-4 pb-0.5">
+          <button
+            onClick={() => setCategoryFilter(null)}
+            className={cn(
+              'flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-medium border transition-all',
+              !categoryFilter
+                ? 'bg-primary/10 border-primary/30 text-primary'
+                : 'border-border/50 text-muted-foreground/50 hover:border-border hover:text-muted-foreground'
+            )}
+          >
+            All
+          </button>
+          {usedCategories.map((cat) => (
+            <button
+              key={cat.value}
+              onClick={() => setCategoryFilter(categoryFilter === cat.value ? null : cat.value)}
+              className={cn(
+                'flex-shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-medium border transition-all',
+                categoryFilter === cat.value
+                  ? 'bg-primary/10 border-primary/30 text-primary'
+                  : 'border-border/50 text-muted-foreground/50 hover:border-border hover:text-muted-foreground'
+              )}
+            >
+              <span>{cat.emoji}</span>
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Search results / flat view / grouped view */}
       {search || viewMode === 'flat' ? (

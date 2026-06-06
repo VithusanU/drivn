@@ -6,6 +6,7 @@ import { UserPlus, Users, RefreshCw, Check, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import FriendCard, { type FriendActivity } from '@/components/friends/FriendCard'
 import AddFriendSheet from '@/components/friends/AddFriendSheet'
+import ActivityFeed, { type FeedItem } from '@/components/friends/ActivityFeed'
 import { cn } from '@/lib/utils'
 import { useUserStore } from '@/stores/userStore'
 import { createClient } from '@/lib/supabase/client'
@@ -23,6 +24,7 @@ function FriendsPageInner() {
 
   const [friends, setFriends] = useState<FriendActivity[]>([])
   const [pending, setPending] = useState<PendingRequest[]>([])
+  const [feed, setFeed] = useState<FeedItem[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
@@ -54,10 +56,17 @@ function FriendsPageInner() {
   }, [joinToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadActivity = useCallback(async () => {
-    const res = await fetch('/api/friends/activity')
-    if (res.ok) {
-      const json = await res.json()
+    const [actRes, feedRes] = await Promise.all([
+      fetch('/api/friends/activity'),
+      fetch('/api/friends/feed'),
+    ])
+    if (actRes.ok) {
+      const json = await actRes.json()
       setFriends(json.friends ?? [])
+    }
+    if (feedRes.ok) {
+      const json = await feedRes.json()
+      setFeed(json.feed ?? [])
     }
   }, [])
 
@@ -280,6 +289,9 @@ function FriendsPageInner() {
           </AnimatePresence>
         </div>
       )}
+
+      {/* Activity feed */}
+      {feed.length > 0 && <ActivityFeed items={feed} />}
 
       <AddFriendSheet
         open={addOpen}

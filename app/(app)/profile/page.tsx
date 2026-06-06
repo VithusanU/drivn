@@ -47,7 +47,12 @@ export default function ProfilePage() {
 
   const hasBetaAccess = profile?.beta_access === true
   const hasOwnKey = !!profile?.anthropic_key_masked
-  const canUseAI = hasBetaAccess || hasOwnKey
+  const AI_TRIAL_DAYS = 7
+  const trialDaysLeft = profile?.created_at
+    ? Math.max(0, AI_TRIAL_DAYS - Math.floor((Date.now() - new Date(profile.created_at).getTime()) / 86400000))
+    : 0
+  const isInTrial = trialDaysLeft > 0
+  const canUseAI = hasBetaAccess || hasOwnKey || isInTrial
 
   // BYOK state
   const [keyInput, setKeyInput] = useState('')
@@ -386,7 +391,10 @@ export default function ProfilePage() {
               <div className="text-left">
                 <p className="text-sm text-foreground/80">AI mode</p>
                 <p className="text-[11px] text-muted-foreground/50 mt-0.5">
-                  {hasOwnKey ? 'Using your own API key' : 'AI-powered recommendations'}
+                  {hasOwnKey ? 'Using your own API key'
+                    : hasBetaAccess ? 'AI-powered recommendations'
+                    : isInTrial ? `Free trial · ${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''} left`
+                    : 'AI-powered recommendations'}
                 </p>
               </div>
             </div>

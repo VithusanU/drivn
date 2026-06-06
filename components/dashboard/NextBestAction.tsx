@@ -38,7 +38,12 @@ export default function NextBestAction() {
   const profile = useUserStore((s) => s.profile)
   const hasBetaAccess = profile?.beta_access === true
   const hasOwnKey = !!profile?.anthropic_key_masked
-  const canUseAI = hasBetaAccess || hasOwnKey
+  // New accounts get a 7-day free trial of AI mode
+  const AI_TRIAL_DAYS = 7
+  const isInTrial = profile?.created_at
+    ? (Date.now() - new Date(profile.created_at).getTime()) < AI_TRIAL_DAYS * 24 * 60 * 60 * 1000
+    : false
+  const canUseAI = hasBetaAccess || hasOwnKey || isInTrial
 
   const aiRecommendation = useAIStore((s) => s.recommendation)
   const aiFetching = useAIStore((s) => s.fetching)

@@ -3,9 +3,10 @@
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, X, Heart, Zap, Repeat } from 'lucide-react'
+import { Check, X, Heart, Zap, Repeat, Bell } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
+import { subscribeToPush } from '@/lib/notifications'
 import { cn } from '@/lib/utils'
 import type { Task } from '@/types'
 
@@ -42,6 +43,7 @@ function OnboardingContent() {
   const [deadline, setDeadline] = useState<Deadline | null>(null)
   const [createdTask, setCreatedTask] = useState<Task | null>(null)
   const [saving, setSaving] = useState(false)
+  const [notifState, setNotifState] = useState<'idle' | 'requesting' | 'granted' | 'denied'>('idle')
 
   const createTask = useTaskStore((s) => s.createTask)
   const completeTask = useTaskStore((s) => s.completeTask)
@@ -75,6 +77,13 @@ function OnboardingContent() {
     setStep(3) // habits step
   }
 
+  const handleEnableNotifs = async () => {
+    setNotifState('requesting')
+    const ok = await subscribeToPush()
+    setNotifState(ok ? 'granted' : 'denied')
+    setTimeout(() => setStep(5), 1200)
+  }
+
   const handleFinish = async () => {
     if (!isReplay) await markOnboarded()
     router.push('/')
@@ -90,7 +99,7 @@ function OnboardingContent() {
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto px-6">
       {/* Progress bar */}
       <div className="flex gap-1.5 pt-8 pb-2">
-        {[0, 1, 2, 3, 4].map((i) => (
+        {[0, 1, 2, 3, 4, 5].map((i) => (
           <div
             key={i}
             className={cn(
@@ -365,8 +374,69 @@ function OnboardingContent() {
             </motion.div>
           )}
 
-          {/* ── Screen 5: Reinforcement ──────────────────────────────── */}
+          {/* ── Screen 5: Notifications ─────────────────────────────── */}
           {step === 4 && (
+            <motion.div
+              key="step4-notifs"
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.22 }}
+              className="flex flex-col flex-1 pt-8"
+            >
+              <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-5">
+                Stay on track
+              </p>
+              <h1 className="text-[26px] font-medium text-foreground leading-snug mb-2">
+                Get a daily nudge.
+              </h1>
+              <p className="text-[14px] text-muted-foreground leading-relaxed mb-8">
+                Drivn can remind you once a day — right when you want to be reminded — so you never forget to get locked in.
+              </p>
+
+              <div className="bg-secondary/60 rounded-2xl p-5 flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+                  <Bell className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-[14px] font-medium text-foreground">Daily reminder</p>
+                  <p className="text-[12px] text-muted-foreground/60 mt-0.5">
+                    &ldquo;⚡ Time to get locked in&rdquo; — set the time in Profile later
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-auto pt-4 space-y-3">
+                {notifState === 'granted' ? (
+                  <div className="w-full py-4 rounded-2xl bg-drivn-green/10 border border-drivn-green/25 text-center">
+                    <p className="text-[15px] font-medium text-drivn-green">✓ Notifications enabled</p>
+                  </div>
+                ) : notifState === 'denied' ? (
+                  <div className="w-full py-4 rounded-2xl bg-secondary border border-border text-center">
+                    <p className="text-[13px] text-muted-foreground">You can enable these later in Profile → Notifications</p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleEnableNotifs}
+                    disabled={notifState === 'requesting'}
+                    className="w-full py-4 rounded-2xl bg-primary text-primary-foreground text-[15px] font-medium transition-all active:scale-[0.98] disabled:opacity-60"
+                  >
+                    {notifState === 'requesting' ? 'Enabling…' : 'Enable notifications'}
+                  </button>
+                )}
+                <button
+                  onClick={() => setStep(5)}
+                  className="w-full py-2 text-[13px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                >
+                  Skip for now
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Screen 6: Reinforcement ──────────────────────────────── */}
+          {step === 5 && (
             <motion.div
               key="step4"
               variants={slideVariants}
