@@ -40,6 +40,9 @@ export default function FocusModePage({ params }: FocusModePageProps) {
   useHabitStore((s) => s.habits)
   useHabitStore((s) => s.completions)
 
+  const isLoading = useTaskStore((s) => s.isLoading)
+  const hasFetched = useTaskStore((s) => s.hasFetched)
+
   const [completing, setCompleting] = useState(false)
   const [completed, setCompleted] = useState(false)
   const [newStreak, setNewStreak] = useState(0)
@@ -58,7 +61,15 @@ export default function FocusModePage({ params }: FocusModePageProps) {
     }
   }, [task?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Wait for tasks to load before deciding the task doesn't exist
   if (!task && !completed) {
+    if (isLoading || !hasFetched) {
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <p className="text-muted-foreground animate-pulse">Loading…</p>
+        </div>
+      )
+    }
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-muted-foreground">Task not found.</p>
