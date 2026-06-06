@@ -1,13 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import webpush from 'web-push'
-
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-)
+import { sendPush } from '@/lib/webpush'
 
 export async function POST(req: Request) {
   const supabase = createClient()
@@ -51,20 +45,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, note: 'No push subscription for friend' })
   }
 
-  const payload = JSON.stringify({
+  await sendPush(subs, {
     title: `🎉 ${senderName} is cheering you on!`,
-    body: 'Keep going — you\'ve got this! 💪',
-    icon: '/logo.png',
+    body: "Keep going — you've got this! 💪",
+    url: '/friends',
   })
-
-  await Promise.allSettled(
-    subs.map((sub: any) =>
-      webpush.sendNotification(
-        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        payload
-      )
-    )
-  )
 
   return NextResponse.json({ ok: true })
 }

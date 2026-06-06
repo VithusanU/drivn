@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendPush } from '@/lib/webpush'
 
 // GET — list accepted friends + pending incoming requests
 export async function GET() {
@@ -92,5 +93,26 @@ export async function POST(req: Request) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Fire-and-forget: notify the addressee they have a new friend request
+  ;(async () => {
+    try {
+      const [{ data: senderProfile }, { data: subs }] = await Promise.all([
+        admin.from('user_profiles').select('full_name, username').eq('id', user.id).single(),
+        admin.from('push_subscriptions').select('endpoint, p256dh, auth').eq('user_id', addresseeId),
+      ])
+      if (subs && subs.length > 0) {
+        const senderName = senderProfile?.full_name || senderProfile?.username || 'Someone'
+        await sendPush(subs, {
+          title: '👥 New friend request',
+          body: `${senderName} wants to be your friend on Drivn`,
+          url: '/friends',
+        })
+      }
+    } catch {
+      // non-critical — don't fail the request if push fails
+    }
+  })()
+
   return NextResponse.json({ friendship: data })
 }
