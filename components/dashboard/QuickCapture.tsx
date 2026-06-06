@@ -227,7 +227,7 @@ export default function QuickCapture() {
     <>
     <TaskScanner scannerRef={scannerRef} />
     <TaskTemplates open={showTemplates} onClose={() => setShowTemplates(false)} />
-    <AddEventSheet open={showAddEvent} onClose={() => setShowAddEvent(false)} />
+    <AddEventSheet key={showAddEvent ? 'open' : 'closed'} open={showAddEvent} onClose={() => setShowAddEvent(false)} />
     <div className={cn(
       'fixed z-20 pb-3',
       'bottom-[60px] left-0 right-0',

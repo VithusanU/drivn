@@ -68,9 +68,14 @@ export default function AddEventSheet({ open, onClose, editingEvent }: Props) {
     }
 
     if (editingEvent) {
-      await updateEvent(editingEvent.id, payload as UpdateEventInput)
-      setSaving(false)
-      onClose()
+      try {
+        await updateEvent(editingEvent.id, payload as UpdateEventInput)
+        setSaving(false)
+        onClose()
+      } catch {
+        setSaving(false)
+        setSaveError(true)
+      }
     } else {
       const result = await createEvent(payload)
       setSaving(false)

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Calendar, ChevronRight, CalendarPlus } from 'lucide-react'
+import { Plus, Calendar, CalendarPlus, Pencil } from 'lucide-react'
 import { useEventStore } from '@/stores/eventStore'
 import AddEventSheet from '@/components/events/AddEventSheet'
 import { cn } from '@/lib/utils'
@@ -109,8 +109,8 @@ function EventRow({ event, onEdit }: EventRowProps) {
 
   return (
     <div className={cn(
-      'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl',
-      'bg-card/50 border border-border/50'
+      'w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl',
+      'bg-card/50 border border-border/50 hover:bg-card hover:border-border transition-colors'
     )}>
       <button
         onClick={() => onEdit(event)}
@@ -136,6 +136,15 @@ function EventRow({ event, onEdit }: EventRowProps) {
       )}>
         {countdown}
       </span>
+
+      {/* Edit */}
+      <button
+        onClick={() => onEdit(event)}
+        aria-label="Edit event"
+        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/30 hover:text-foreground/60 transition-colors"
+      >
+        <Pencil className="w-3 h-3" />
+      </button>
 
       {/* Add to device calendar */}
       <button
@@ -204,6 +213,7 @@ export default function UpcomingEvents() {
       </div>
 
       <AddEventSheet
+        key={editingEvent?.id ?? 'new'}
         open={addOpen}
         onClose={() => { setAddOpen(false); setEditingEvent(null) }}
         editingEvent={editingEvent}
