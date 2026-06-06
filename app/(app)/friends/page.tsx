@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { UserPlus, Users, RefreshCw, Check, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -16,7 +16,7 @@ interface PendingRequest {
   profile: { full_name: string | null; username: string | null } | null
 }
 
-export default function FriendsPage() {
+function FriendsPageInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const profile = useUserStore((s) => s.profile)
@@ -278,5 +278,17 @@ export default function FriendsPage() {
         onRequestSent={loadFriendships}
       />
     </div>
+  )
+}
+
+export default function FriendsPage() {
+  return (
+    <Suspense fallback={
+      <div className="h-40 flex items-center justify-center">
+        <p className="text-[13px] text-muted-foreground animate-pulse">Loading…</p>
+      </div>
+    }>
+      <FriendsPageInner />
+    </Suspense>
   )
 }
