@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 interface DayData {
   habits: number
   tasks: number
+  eventEmojis: string[]
 }
 
 interface FocusSession {
@@ -27,11 +28,20 @@ interface WeeklyInsight {
   tasksLastWeek: number
   habitStreakDays: number
   mostProductiveDay: string | null
+  mostProductiveDateStr: string | null
   focusMinutesThisWeek: number
 }
 
 // Mon–Sun week order
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+const CATEGORY_EMOJI: Record<string, string> = {
+  appointment: '🏥',
+  maintenance: '🔧',
+  personal: '🙂',
+  health: '💊',
+  other: '📌',
+}
 
 function mondayOffset(date: Date): number {
   // getDay: 0=Sun…6=Sat → shift so Mon=0…Sun=6
@@ -94,14 +104,18 @@ export default function SummaryPage() {
         .limit(10),
     ])
 
-    // Count tasks per day of week to find most productive
+    // Count tasks per date to find most productive day
     const dayCount: Record<string, number> = {}
     for (const row of thisWeekTasks ?? []) {
-      const day = format(new Date(row.completed_at), 'EEEE')
-      dayCount[day] = (dayCount[day] ?? 0) + 1
+      const dateStr = format(new Date(row.completed_at), 'yyyy-MM-dd')
+      dayCount[dateStr] = (dayCount[dateStr] ?? 0) + 1
     }
-    const mostProductiveDay = Object.keys(dayCount).length > 0
-      ? Object.entries(dayCount).sort((a, b) => b[1] - a[1])[0][0]
+    const bestEntry = Object.keys(dayCount).length > 0
+      ? Object.entries(dayCount).sort((a, b) => b[1] - a[1])[0]
+      : null
+    const mostProductiveDateStr = bestEntry ? bestEntry[0] : null
+    const mostProductiveDay = mostProductiveDateStr
+      ? format(parseISO(mostProductiveDateStr), 'EEEE')
       : null
 
     const focusMinutes = (focusSessions ?? []).reduce((s: number, f: any) => s + (f.minutes_logged ?? 0), 0)
@@ -111,6 +125,7 @@ export default function SummaryPage() {
       tasksLastWeek: lastWeekTasks?.length ?? 0,
       habitStreakDays: 0, // derived from activity data
       mostProductiveDay,
+      mostProductiveDateStr,
       focusMinutesThisWeek: focusMinutes,
     })
     setRecentSessions((focusSessions ?? []) as FocusSession[])
@@ -123,7 +138,7 @@ export default function SummaryPage() {
     const start = format(startOfMonth(m), 'yyyy-MM-dd')
     const end = format(endOfMonth(m), 'yyyy-MM-dd')
 
-    const [{ data: habitRows }, { data: taskRows }] = await Promise.all([
+    const [{ data: habitRows }, { data: taskRows }, { data: eventRows }] = await Promise.all([
       supabase
         .from('habit_completions')
         .select('completed_date')
@@ -136,19 +151,32 @@ export default function SummaryPage() {
         .gte('completed_at', startOfMonth(m).toISOString())
         .lte('completed_at', endOfMonth(m).toISOString())
         .not('completed_at', 'is', null),
+      supabase
+        .from('events')
+        .select('event_date, category')
+        .gte('event_date', start)
+        .lte('event_date', end),
     ])
 
     const data: Record<string, DayData> = {}
 
     for (const row of habitRows ?? []) {
       const key = row.completed_date as string
-      if (!data[key]) data[key] = { habits: 0, tasks: 0 }
+      if (!data[key]) data[key] = { habits: 0, tasks: 0, eventEmojis: [] }
       data[key].habits++
     }
     for (const row of taskRows ?? []) {
       const key = format(new Date(row.completed_at as string), 'yyyy-MM-dd')
-      if (!data[key]) data[key] = { habits: 0, tasks: 0 }
+      if (!data[key]) data[key] = { habits: 0, tasks: 0, eventEmojis: [] }
       data[key].tasks++
+    }
+    for (const row of eventRows ?? []) {
+      const key = row.event_date as string
+      if (!data[key]) data[key] = { habits: 0, tasks: 0, eventEmojis: [] }
+      const emoji = CATEGORY_EMOJI[row.category as string] ?? '📌'
+      if (!data[key].eventEmojis.includes(emoji)) {
+        data[key].eventEmojis.push(emoji)
+      }
     }
 
     setDayData(data)
@@ -165,7 +193,7 @@ export default function SummaryPage() {
   const totalTasks = Object.values(dayData).reduce((s, d) => s + d.tasks, 0)
   const activeDays = Object.values(dayData).filter((d) => d.habits + d.tasks > 0).length
 
-  const selectedData = selected ? (dayData[selected] ?? { habits: 0, tasks: 0 }) : null
+  const selectedData = selected ? (dayData[selected] ?? { habits: 0, tasks: 0, eventEmojis: [] }) : null
 
   return (
     <div className="px-4 pt-6 pb-6 space-y-6">
@@ -332,10 +360,12 @@ export default function SummaryPage() {
             {/* Day cells */}
             {days.map((day) => {
               const key = format(day, 'yyyy-MM-dd')
-              const data = dayData[key] ?? { habits: 0, tasks: 0 }
+              const data = dayData[key] ?? { habits: 0, tasks: 0, eventEmojis: [] }
               const level = activityLevel(data)
               const isSelected = selected === key
               const today = isToday(day)
+              const isBestDay = weeklyInsight?.mostProductiveDateStr === key
+              const firstEmoji = data.eventEmojis[0] ?? null
 
               return (
                 <button
@@ -349,6 +379,11 @@ export default function SummaryPage() {
                     today && !isSelected && 'border-primary/40'
                   )}
                 >
+                  {/* Best day star badge */}
+                  {isBestDay && (
+                    <span className="absolute -top-1 -right-1 text-[9px] leading-none pointer-events-none">⭐</span>
+                  )}
+
                   <span className={cn(
                     'text-[11px] font-medium leading-none',
                     today ? 'text-primary' : level > 0 ? 'text-foreground' : 'text-muted-foreground/60'
@@ -367,6 +402,11 @@ export default function SummaryPage() {
                       )}
                     </div>
                   )}
+
+                  {/* Event category emoji */}
+                  {firstEmoji && (
+                    <span className="text-[8px] leading-none mt-0.5">{firstEmoji}</span>
+                  )}
                 </button>
               )
             })}
@@ -374,7 +414,7 @@ export default function SummaryPage() {
         )}
 
         {/* Legend */}
-        <div className="flex items-center gap-4 mt-3 justify-center">
+        <div className="flex items-center gap-3 mt-3 justify-center flex-wrap">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-drivn-green" />
             <span className="text-[11px] text-muted-foreground/60">Habits</span>
@@ -382,6 +422,14 @@ export default function SummaryPage() {
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-primary" />
             <span className="text-[11px] text-muted-foreground/60">Tasks</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] leading-none">📅</span>
+            <span className="text-[11px] text-muted-foreground/60">Events</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] leading-none">⭐</span>
+            <span className="text-[11px] text-muted-foreground/60">Best day</span>
           </div>
         </div>
       </div>
@@ -392,10 +440,10 @@ export default function SummaryPage() {
           <p className="text-[13px] font-medium text-foreground">
             {format(parseISO(selected), 'EEEE, MMMM d')}
           </p>
-          {selectedData.habits === 0 && selectedData.tasks === 0 ? (
+          {selectedData.habits === 0 && selectedData.tasks === 0 && selectedData.eventEmojis.length === 0 ? (
             <p className="text-[13px] text-muted-foreground/50">No activity logged this day.</p>
           ) : (
-            <div className="flex gap-4">
+            <div className="flex gap-4 flex-wrap">
               {selectedData.habits > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-drivn-green flex-shrink-0" />
@@ -409,6 +457,14 @@ export default function SummaryPage() {
                   <span className="w-2.5 h-2.5 rounded-full bg-primary flex-shrink-0" />
                   <span className="text-[13px] text-foreground">
                     {selectedData.tasks} task{selectedData.tasks !== 1 ? 's' : ''} completed
+                  </span>
+                </div>
+              )}
+              {selectedData.eventEmojis.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[14px] leading-none">{selectedData.eventEmojis.join(' ')}</span>
+                  <span className="text-[13px] text-foreground">
+                    {selectedData.eventEmojis.length} event{selectedData.eventEmojis.length !== 1 ? 's' : ''}
                   </span>
                 </div>
               )}

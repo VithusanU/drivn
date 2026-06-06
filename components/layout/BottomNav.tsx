@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Heart, User, ShieldCheck, BarChart2 } from 'lucide-react'
+import { Home, Heart, User, ShieldCheck, BarChart2, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { APP_VERSION } from '@/lib/version'
 import ThemeToggle from './ThemeToggle'
@@ -12,6 +12,7 @@ import { useUserStore } from '@/stores/userStore'
 const BASE_NAV = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/habits', label: 'Habits', icon: Heart },
+  { href: '/friends', label: 'Friends', icon: Users },
   { href: '/summary', label: 'Summary', icon: BarChart2 },
   { href: '/profile', label: 'Profile', icon: User },
 ]
@@ -56,7 +57,7 @@ export default function BottomNav() {
             key={href}
             href={href}
             className={cn(
-              'flex flex-col items-center gap-1 px-6 py-2 touch-target',
+              'flex flex-col items-center gap-1 px-3 py-2 touch-target',
               'transition-colors duration-150',
               isActive ? 'text-primary' : 'text-muted-foreground'
             )}

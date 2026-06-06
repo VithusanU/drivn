@@ -11,6 +11,7 @@ import { useUserStore } from '@/stores/userStore'
 import { useEventStore } from '@/stores/eventStore'
 import { useGlobalTimer } from '@/hooks/useGlobalTimer'
 import { useGlobalSpotifyPlayer } from '@/hooks/useGlobalSpotifyPlayer'
+import { usePresenceSync } from '@/hooks/usePresenceSync'
 import { Analytics } from '@/lib/analytics'
 import { getReminderTime } from '@/lib/notifications'
 
@@ -24,6 +25,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useGlobalTimer()
   useGlobalSpotifyPlayer()
+  usePresenceSync()
 
   // Re-fetch completions when the tab becomes visible again — guards against the app
   // being left open overnight so yesterday's data doesn't bleed into a new day.

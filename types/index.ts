@@ -10,6 +10,8 @@ export interface UserProfile {
   onboarded_at: string | null
   beta_access: boolean
   anthropic_key_masked: string | null
+  username: string | null
+  share_activity: boolean
 }
 
 // ─── Tasks ─────────────────────────────────────────────────────────────────
