@@ -9,6 +9,17 @@ function todayRange() {
   return { start: `${d}T00:00:00`, end: `${d}T23:59:59` }
 }
 
+function weekStart() {
+  const now = new Date()
+  const day = now.getDay()
+  const diff = day === 0 ? -6 : 1 - day // back to Monday
+  const mon = new Date(now)
+  mon.setDate(now.getDate() + diff)
+  mon.setHours(0, 0, 0, 0)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${mon.getFullYear()}-${pad(mon.getMonth() + 1)}-${pad(mon.getDate())}T00:00:00`
+}
+
 function focusDuration(startedAt: string): string {
   const mins = Math.floor((Date.now() - new Date(startedAt).getTime()) / 60000)
   if (mins < 60) return `${mins}m`
@@ -59,30 +70,34 @@ export async function GET() {
   for (const e of friendEntries) friendshipIdMap[e.friendId] = e.friendshipId
 
   // Per-friend activity (parallel)
+  const wStart = weekStart()
+
   const friends = await Promise.all(
     friendIds.map(async (fId: string) => {
-      const [{ count: doneCnt }, { count: activeCnt }, { data: focusRows }] = await Promise.all([
-        admin
-          .from('tasks')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', fId)
-          .eq('status', 'completed')
-          .gte('completed_at', start)
-          .lte('completed_at', end),
-        admin
-          .from('tasks')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', fId)
-          .eq('status', 'active'),
-        admin
-          .from('focus_sessions')
-          .select('minutes_logged')
-          .eq('user_id', fId)
-          .gte('started_at', start)
-          .lte('started_at', end),
+      const [
+        { count: doneCnt },
+        { count: activeCnt },
+        { data: focusRowsToday },
+        { count: doneWeekCnt },
+        { data: focusRowsWeek },
+      ] = await Promise.all([
+        admin.from('tasks').select('id', { count: 'exact', head: true })
+          .eq('user_id', fId).eq('status', 'completed')
+          .gte('completed_at', start).lte('completed_at', end),
+        admin.from('tasks').select('id', { count: 'exact', head: true })
+          .eq('user_id', fId).eq('status', 'active'),
+        admin.from('focus_sessions').select('minutes_logged')
+          .eq('user_id', fId).gte('started_at', start).lte('started_at', end),
+        admin.from('tasks').select('id', { count: 'exact', head: true })
+          .eq('user_id', fId).eq('status', 'completed').gte('completed_at', wStart),
+        admin.from('focus_sessions').select('minutes_logged')
+          .eq('user_id', fId).gte('started_at', wStart),
       ])
 
-      const focusMinutes = (focusRows ?? []).reduce(
+      const focusMinutesToday = (focusRowsToday ?? []).reduce(
+        (s: number, f: any) => s + (f.minutes_logged ?? 0), 0
+      )
+      const focusMinutesWeek = (focusRowsWeek ?? []).reduce(
         (s: number, f: any) => s + (f.minutes_logged ?? 0), 0
       )
       const presence = presenceMap[fId]
@@ -94,8 +109,10 @@ export async function GET() {
         profile: profileMap[fId] ?? null,
         streak: streakMap[fId] ?? 0,
         tasksDoneToday: doneCnt ?? 0,
+        tasksDoneWeek: doneWeekCnt ?? 0,
         tasksActive: activeCnt ?? 0,
-        focusMinutesToday: focusMinutes,
+        focusMinutesToday,
+        focusMinutesWeek,
         isFocusing,
         focusStartedAt: isFocusing ? presence?.focus_started_at : null,
         focusDuration: isFocusing && presence?.focus_started_at

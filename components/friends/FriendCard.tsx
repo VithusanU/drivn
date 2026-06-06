@@ -36,8 +36,10 @@ export interface FriendActivity {
   profile: { id: string; full_name: string | null; username: string | null; avatar_url: string | null } | null
   streak: number
   tasksDoneToday: number
+  tasksDoneWeek: number
   tasksActive: number
   focusMinutesToday: number
+  focusMinutesWeek: number
   isFocusing: boolean
   focusDuration: string | null
 }
@@ -51,8 +53,11 @@ export default function FriendCard({ friend, onRemove }: Props) {
   const [cheering, setCheering] = useState(false)
   const [cheerSent, setCheerSent] = useState(false)
   const [removing, setRemoving] = useState(false)
+  const [view, setView] = useState<'today' | 'week'>('today')
 
-  const { profile, streak, tasksDoneToday, tasksActive, focusMinutesToday, isFocusing, focusDuration } = friend
+  const { profile, streak, tasksDoneToday, tasksDoneWeek, tasksActive, focusMinutesToday, focusMinutesWeek, isFocusing, focusDuration } = friend
+  const tasksDone = view === 'today' ? tasksDoneToday : tasksDoneWeek
+  const focusMinutes = view === 'today' ? focusMinutesToday : focusMinutesWeek
   const name = profile?.full_name || profile?.username || 'Unknown'
   // Don't show emails as @handles — only show proper @username values
   const rawUsername = profile?.username ?? ''
@@ -135,24 +140,46 @@ export default function FriendCard({ friend, onRemove }: Props) {
         </button>
       </div>
 
-      {/* Stats row */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-1.5">
-          <Target className="w-3 h-3 text-primary/50 flex-shrink-0" />
-          <span className="text-[12px] text-foreground font-medium">{tasksDoneToday}</span>
-          <span className="text-[12px] text-muted-foreground/50">/ {tasksDoneToday + tasksActive} tasks</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Clock className="w-3 h-3 text-primary/50 flex-shrink-0" />
-          <span className="text-[12px] text-foreground font-medium">{formatFocus(focusMinutesToday)}</span>
-          <span className="text-[12px] text-muted-foreground/50">focus</span>
-        </div>
-        {streak > 0 && (
-          <div className="flex items-center gap-1">
-            <Flame className="w-3 h-3 text-amber-400/70 flex-shrink-0" />
-            <span className="text-[12px] font-medium text-foreground">{streak}d</span>
+      {/* Stats toggle + row */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex rounded-lg border border-border bg-secondary p-0.5 gap-0.5">
+            {(['today', 'week'] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={cn(
+                  'px-2.5 py-0.5 rounded-md text-[10px] font-medium transition-all',
+                  view === v
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground/60 hover:text-muted-foreground'
+                )}
+              >
+                {v === 'today' ? 'Today' : 'Week'}
+              </button>
+            ))}
           </div>
-        )}
+          {streak > 0 && (
+            <div className="flex items-center gap-1">
+              <Flame className="w-3 h-3 text-amber-400/70 flex-shrink-0" />
+              <span className="text-[12px] font-medium text-foreground">{streak}d</span>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <Target className="w-3 h-3 text-primary/50 flex-shrink-0" />
+            <span className="text-[12px] text-foreground font-medium">{tasksDone}</span>
+            <span className="text-[12px] text-muted-foreground/50">
+              {view === 'today' ? `/ ${tasksDoneToday + tasksActive} tasks` : 'tasks'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Clock className="w-3 h-3 text-primary/50 flex-shrink-0" />
+            <span className="text-[12px] text-foreground font-medium">{formatFocus(focusMinutes)}</span>
+            <span className="text-[12px] text-muted-foreground/50">focus</span>
+          </div>
+        </div>
       </div>
 
       {/* Cheer button */}

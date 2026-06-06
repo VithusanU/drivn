@@ -32,6 +32,12 @@ interface WeeklyInsight {
   focusMinutesThisWeek: number
 }
 
+interface DailyInsight {
+  tasksToday: number
+  focusMinutesToday: number
+  habitsToday: number
+}
+
 // Mon–Sun week order
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -69,11 +75,15 @@ export default function SummaryPage() {
   const [selected, setSelected] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [weeklyInsight, setWeeklyInsight] = useState<WeeklyInsight | null>(null)
+  const [dailyInsight, setDailyInsight] = useState<DailyInsight | null>(null)
   const [recentSessions, setRecentSessions] = useState<FocusSession[]>([])
+  const [statsView, setStatsView] = useState<'today' | 'week'>('today')
 
   const fetchWeeklyInsights = useCallback(async () => {
     const supabase = createClient()
     const now = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
     const weekStart = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')
     const weekEnd = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')
     const lastWeekStart = format(startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 }), 'yyyy-MM-dd')
@@ -82,29 +92,36 @@ export default function SummaryPage() {
     const [
       { data: thisWeekTasks },
       { data: lastWeekTasks },
-      { data: focusSessions },
+      // Separate queries: all focus minutes this week (no limit) + recent 5 for display
+      { data: allWeekSessions },
+      { data: recentFive },
+      // Daily stats
+      { data: todayTasks },
+      { data: todaySessions },
+      { data: todayHabits },
     ] = await Promise.all([
-      supabase
-        .from('tasks')
-        .select('completed_at')
-        .eq('status', 'completed')
-        .gte('completed_at', `${weekStart}T00:00:00`)
-        .lte('completed_at', `${weekEnd}T23:59:59`),
-      supabase
-        .from('tasks')
-        .select('completed_at')
-        .eq('status', 'completed')
-        .gte('completed_at', `${lastWeekStart}T00:00:00`)
-        .lte('completed_at', `${lastWeekEnd}T23:59:59`),
-      supabase
-        .from('focus_sessions')
-        .select('*')
+      supabase.from('tasks').select('completed_at').eq('status', 'completed')
+        .gte('completed_at', `${weekStart}T00:00:00`).lte('completed_at', `${weekEnd}T23:59:59`),
+      supabase.from('tasks').select('completed_at').eq('status', 'completed')
+        .gte('completed_at', `${lastWeekStart}T00:00:00`).lte('completed_at', `${lastWeekEnd}T23:59:59`),
+      // All sessions this week — no limit so total is accurate
+      supabase.from('focus_sessions').select('minutes_logged')
+        .gte('started_at', `${weekStart}T00:00:00`),
+      // Recent 5 for the "Recent focus sessions" list
+      supabase.from('focus_sessions').select('*')
         .gte('started_at', `${weekStart}T00:00:00`)
-        .order('started_at', { ascending: false })
-        .limit(10),
+        .order('started_at', { ascending: false }).limit(5),
+      // Today's tasks
+      supabase.from('tasks').select('id').eq('status', 'completed')
+        .gte('completed_at', `${todayStr}T00:00:00`).lte('completed_at', `${todayStr}T23:59:59`),
+      // Today's focus sessions
+      supabase.from('focus_sessions').select('minutes_logged')
+        .gte('started_at', `${todayStr}T00:00:00`).lte('started_at', `${todayStr}T23:59:59`),
+      // Today's habits
+      supabase.from('habit_completions').select('id').eq('completed_date', todayStr),
     ])
 
-    // Count tasks per date to find most productive day
+    // Most productive day this week
     const dayCount: Record<string, number> = {}
     for (const row of thisWeekTasks ?? []) {
       const dateStr = format(new Date(row.completed_at), 'yyyy-MM-dd')
@@ -118,17 +135,23 @@ export default function SummaryPage() {
       ? format(parseISO(mostProductiveDateStr), 'EEEE')
       : null
 
-    const focusMinutes = (focusSessions ?? []).reduce((s: number, f: any) => s + (f.minutes_logged ?? 0), 0)
+    const focusMinutesWeek = (allWeekSessions ?? []).reduce((s: number, f: any) => s + (f.minutes_logged ?? 0), 0)
+    const focusMinutesToday = (todaySessions ?? []).reduce((s: number, f: any) => s + (f.minutes_logged ?? 0), 0)
 
     setWeeklyInsight({
       tasksThisWeek: thisWeekTasks?.length ?? 0,
       tasksLastWeek: lastWeekTasks?.length ?? 0,
-      habitStreakDays: 0, // derived from activity data
+      habitStreakDays: 0,
       mostProductiveDay,
       mostProductiveDateStr,
-      focusMinutesThisWeek: focusMinutes,
+      focusMinutesThisWeek: focusMinutesWeek,
     })
-    setRecentSessions((focusSessions ?? []) as FocusSession[])
+    setDailyInsight({
+      tasksToday: todayTasks?.length ?? 0,
+      focusMinutesToday,
+      habitsToday: todayHabits?.length ?? 0,
+    })
+    setRecentSessions((recentFive ?? []) as FocusSession[])
   }, [])
 
   const fetchMonth = useCallback(async (m: Date) => {
@@ -203,76 +226,121 @@ export default function SummaryPage() {
         <p className="text-[13px] text-muted-foreground mt-1">Your activity at a glance</p>
       </div>
 
-      {/* Weekly insights */}
-      {weeklyInsight && (
+      {/* Stats toggle */}
+      {(weeklyInsight || dailyInsight) && (
         <div>
-          <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3">
-            This week
-          </p>
-          <div className="grid grid-cols-2 gap-2.5">
-            {/* Tasks this week vs last */}
-            <div className="rounded-xl border border-border bg-card p-3.5">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Target className="w-3 h-3 text-primary/60" />
-                <p className="text-[10px] text-muted-foreground/60">Tasks done</p>
-              </div>
-              <p className="text-2xl font-semibold text-primary">{weeklyInsight.tasksThisWeek}</p>
-              {weeklyInsight.tasksLastWeek > 0 && (
-                <p className={cn(
-                  'text-[11px] mt-0.5',
-                  weeklyInsight.tasksThisWeek >= weeklyInsight.tasksLastWeek
-                    ? 'text-drivn-green/70'
-                    : 'text-muted-foreground/50'
-                )}>
-                  {weeklyInsight.tasksThisWeek >= weeklyInsight.tasksLastWeek ? '↑' : '↓'} vs {weeklyInsight.tasksLastWeek} last week
-                </p>
-              )}
-            </div>
-
-            {/* Focus time */}
-            <div className="rounded-xl border border-border bg-card p-3.5">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Clock className="w-3 h-3 text-primary/60" />
-                <p className="text-[10px] text-muted-foreground/60">Focus time</p>
-              </div>
-              <p className="text-2xl font-semibold text-primary">
-                {weeklyInsight.focusMinutesThisWeek < 60
-                  ? `${weeklyInsight.focusMinutesThisWeek}m`
-                  : `${Math.floor(weeklyInsight.focusMinutesThisWeek / 60)}h${weeklyInsight.focusMinutesThisWeek % 60 ? ` ${weeklyInsight.focusMinutesThisWeek % 60}m` : ''}`}
-              </p>
-              <p className="text-[11px] text-muted-foreground/50 mt-0.5">this week</p>
-            </div>
-
-            {/* Most productive day */}
-            {weeklyInsight.mostProductiveDay && (
-              <div className="rounded-xl border border-border bg-card p-3.5">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Flame className="w-3 h-3 text-amber-400/70" />
-                  <p className="text-[10px] text-muted-foreground/60">Best day</p>
-                </div>
-                <p className="text-[15px] font-semibold text-foreground">{weeklyInsight.mostProductiveDay}</p>
-                <p className="text-[11px] text-muted-foreground/50 mt-0.5">most tasks done</p>
-              </div>
-            )}
-
-            {/* Trend */}
-            <div className="rounded-xl border border-border bg-card p-3.5">
-              <div className="flex items-center gap-1.5 mb-1">
-                <TrendingUp className="w-3 h-3 text-primary/60" />
-                <p className="text-[10px] text-muted-foreground/60">Trend</p>
-              </div>
-              <p className="text-[15px] font-semibold text-foreground">
-                {weeklyInsight.tasksThisWeek === 0
-                  ? 'Getting started'
-                  : weeklyInsight.tasksThisWeek > weeklyInsight.tasksLastWeek
-                    ? 'On the rise 🔥'
-                    : weeklyInsight.tasksThisWeek === weeklyInsight.tasksLastWeek
-                      ? 'Steady pace'
-                      : 'Room to grow'}
-              </p>
-              <p className="text-[11px] text-muted-foreground/50 mt-0.5">vs last week</p>
+          {/* Day / Week toggle */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex rounded-xl border border-border bg-secondary p-0.5 gap-0.5">
+              {(['today', 'week'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setStatsView(v)}
+                  className={cn(
+                    'px-4 py-1.5 rounded-lg text-[12px] font-medium transition-all',
+                    statsView === v
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {v === 'today' ? 'Today' : 'This week'}
+                </button>
+              ))}
             </div>
           </div>
+
+          {/* Today stats */}
+          {statsView === 'today' && dailyInsight && (
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="rounded-xl border border-border bg-card p-3.5">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Target className="w-3 h-3 text-primary/60" />
+                  <p className="text-[10px] text-muted-foreground/60">Tasks done</p>
+                </div>
+                <p className="text-2xl font-semibold text-primary">{dailyInsight.tasksToday}</p>
+                <p className="text-[11px] text-muted-foreground/50 mt-0.5">today</p>
+              </div>
+              <div className="rounded-xl border border-border bg-card p-3.5">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Clock className="w-3 h-3 text-primary/60" />
+                  <p className="text-[10px] text-muted-foreground/60">Focus time</p>
+                </div>
+                <p className="text-2xl font-semibold text-primary">
+                  {dailyInsight.focusMinutesToday < 60
+                    ? `${dailyInsight.focusMinutesToday}m`
+                    : `${Math.floor(dailyInsight.focusMinutesToday / 60)}h${dailyInsight.focusMinutesToday % 60 ? ` ${dailyInsight.focusMinutesToday % 60}m` : ''}`}
+                </p>
+                <p className="text-[11px] text-muted-foreground/50 mt-0.5">today</p>
+              </div>
+              <div className="rounded-xl border border-border bg-card p-3.5 col-span-2">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Flame className="w-3 h-3 text-amber-400/70" />
+                  <p className="text-[10px] text-muted-foreground/60">Habits logged</p>
+                </div>
+                <p className="text-2xl font-semibold text-drivn-green">{dailyInsight.habitsToday}</p>
+                <p className="text-[11px] text-muted-foreground/50 mt-0.5">today</p>
+              </div>
+            </div>
+          )}
+
+          {/* Week stats */}
+          {statsView === 'week' && weeklyInsight && (
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="rounded-xl border border-border bg-card p-3.5">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Target className="w-3 h-3 text-primary/60" />
+                  <p className="text-[10px] text-muted-foreground/60">Tasks done</p>
+                </div>
+                <p className="text-2xl font-semibold text-primary">{weeklyInsight.tasksThisWeek}</p>
+                {weeklyInsight.tasksLastWeek > 0 && (
+                  <p className={cn(
+                    'text-[11px] mt-0.5',
+                    weeklyInsight.tasksThisWeek >= weeklyInsight.tasksLastWeek
+                      ? 'text-drivn-green/70' : 'text-muted-foreground/50'
+                  )}>
+                    {weeklyInsight.tasksThisWeek >= weeklyInsight.tasksLastWeek ? '↑' : '↓'} vs {weeklyInsight.tasksLastWeek} last week
+                  </p>
+                )}
+              </div>
+              <div className="rounded-xl border border-border bg-card p-3.5">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Clock className="w-3 h-3 text-primary/60" />
+                  <p className="text-[10px] text-muted-foreground/60">Focus time</p>
+                </div>
+                <p className="text-2xl font-semibold text-primary">
+                  {weeklyInsight.focusMinutesThisWeek < 60
+                    ? `${weeklyInsight.focusMinutesThisWeek}m`
+                    : `${Math.floor(weeklyInsight.focusMinutesThisWeek / 60)}h${weeklyInsight.focusMinutesThisWeek % 60 ? ` ${weeklyInsight.focusMinutesThisWeek % 60}m` : ''}`}
+                </p>
+                <p className="text-[11px] text-muted-foreground/50 mt-0.5">this week</p>
+              </div>
+              {weeklyInsight.mostProductiveDay && (
+                <div className="rounded-xl border border-border bg-card p-3.5">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Flame className="w-3 h-3 text-amber-400/70" />
+                    <p className="text-[10px] text-muted-foreground/60">Best day</p>
+                  </div>
+                  <p className="text-[15px] font-semibold text-foreground">{weeklyInsight.mostProductiveDay}</p>
+                  <p className="text-[11px] text-muted-foreground/50 mt-0.5">most tasks done</p>
+                </div>
+              )}
+              <div className="rounded-xl border border-border bg-card p-3.5">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <TrendingUp className="w-3 h-3 text-primary/60" />
+                  <p className="text-[10px] text-muted-foreground/60">Trend</p>
+                </div>
+                <p className="text-[15px] font-semibold text-foreground">
+                  {weeklyInsight.tasksThisWeek === 0
+                    ? 'Getting started'
+                    : weeklyInsight.tasksThisWeek > weeklyInsight.tasksLastWeek
+                      ? 'On the rise 🔥'
+                      : weeklyInsight.tasksThisWeek === weeklyInsight.tasksLastWeek
+                        ? 'Steady pace' : 'Room to grow'}
+                </p>
+                <p className="text-[11px] text-muted-foreground/50 mt-0.5">vs last week</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
