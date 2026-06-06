@@ -72,9 +72,24 @@ export default function FocusModePage({ params }: FocusModePageProps) {
         </div>
       )
     }
+    // Task loaded but not found — it was completed or deleted while the timer was still running.
+    // Offer to clear the stale timer and go home.
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">Task not found.</p>
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-6 text-center">
+        <div className="text-3xl">✅</div>
+        <p className="text-[17px] font-medium text-foreground">Task already done</p>
+        <p className="text-[13px] text-muted-foreground max-w-xs">
+          This task was completed or removed. You can clear the timer and head back home.
+        </p>
+        <button
+          onClick={() => {
+            useTimerStore.getState().clearTimer()
+            router.push('/')
+          }}
+          className="mt-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground text-[14px] font-medium"
+        >
+          Clear timer &amp; go home
+        </button>
       </div>
     )
   }

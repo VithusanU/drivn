@@ -52,6 +52,11 @@ export default function NextBestAction() {
   const timerTimeUp = useTimerStore((s) => s.timeUp)
   const breakActive = useTimerStore((s) => s.breakActive)
   const breakSecondsLeft = useTimerStore((s) => s.breakSecondsLeft)
+  const hasFetched = useTaskStore((s) => s.hasFetched)
+
+  // If tasks have loaded and the timer task no longer exists, it was completed/deleted.
+  // Don't show a broken Resume card — offer to clear the stale timer instead.
+  const timerTaskExists = !timerTaskId || !hasFetched || tasks.some((t) => t.id === timerTaskId)
 
   const isAIMode = betaModeEnabled && canUseAI
 
@@ -64,6 +69,36 @@ export default function NextBestAction() {
     const filtered = tasks.filter((t) => !skippedIds.includes(t.id))
     fetchAIRecommendation(filtered)
   }, [isAIMode, tasks.length, skippedIds.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Stale timer card (task was completed/deleted but timer persisted) ────────
+  if (timerTaskId && hasFetched && !timerTaskExists) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={cn(
+          'rounded-2xl overflow-hidden',
+          'bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460]',
+          'border border-primary/20 p-5'
+        )}
+      >
+        <p className="text-[10px] font-medium tracking-[0.15em] uppercase text-primary/60 mb-2">
+          Timer
+        </p>
+        <h2 className="text-xl font-medium text-white leading-snug mb-1">{timerTaskTitle}</h2>
+        <p className="text-[12px] text-white/40 mb-4">This task was already completed.</p>
+        <button
+          onClick={() => useTimerStore.getState().clearTimer()}
+          className={cn(
+            'flex items-center justify-center gap-2 w-full py-3 rounded-xl text-[14px] font-medium',
+            'bg-white/10 border border-white/15 text-white/70 transition-all hover:bg-white/15'
+          )}
+        >
+          Dismiss timer
+        </button>
+      </motion.div>
+    )
+  }
 
   // ── Active timer card ───────────────────────────────────────────────────────
   if (timerTaskId) {
