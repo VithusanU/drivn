@@ -54,7 +54,9 @@ export default function FriendCard({ friend, onRemove }: Props) {
 
   const { profile, streak, tasksDoneToday, tasksActive, focusMinutesToday, isFocusing, focusDuration } = friend
   const name = profile?.full_name || profile?.username || 'Unknown'
-  const handle = profile?.username ? `@${profile.username}` : null
+  // Don't show emails as @handles — only show proper @username values
+  const rawUsername = profile?.username ?? ''
+  const handle = rawUsername && !rawUsername.includes('@') ? `@${rawUsername}` : null
 
   const handleCheer = async () => {
     if (cheering || cheerSent) return
