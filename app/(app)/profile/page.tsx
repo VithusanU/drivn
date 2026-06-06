@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap, Key, X, Camera, Link2, Loader2 } from 'lucide-react'
+import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap, Key, X, Camera, Link2, Loader2, Info } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/stores/userStore'
 import { cn } from '@/lib/utils'
+import { APP_VERSION } from '@/lib/version'
+import ChangelogSheet from '@/components/ui/ChangelogSheet'
 import {
   subscribeToPush, unsubscribeFromPush, isSubscribed,
   saveReminderTime, getReminderTime,
@@ -32,6 +34,7 @@ export default function ProfilePage() {
   const [showTimePicker, setShowTimePicker] = useState(false)
   const [savingTime, setSavingTime] = useState(false)
   const [openGuide, setOpenGuide] = useState<string | null>(null)
+  const [showChangelog, setShowChangelog] = useState(false)
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([])
 
   // Beta access state
@@ -633,6 +636,25 @@ export default function ProfilePage() {
           </div>
         ))}
       </div>
+
+      {/* Version */}
+      <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3 mt-8">
+        App
+      </p>
+      <div className="rounded-2xl border border-border overflow-hidden">
+        <button
+          onClick={() => setShowChangelog(true)}
+          className="w-full flex items-center justify-between px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <Info className="w-4 h-4 text-muted-foreground" />
+            <span>What&apos;s new</span>
+          </div>
+          <span className="text-muted-foreground/50 text-xs">v{APP_VERSION}</span>
+        </button>
+      </div>
+
+      <ChangelogSheet open={showChangelog} onClose={() => setShowChangelog(false)} />
 
       {/* ── Inline account switcher sheet ── */}
       <AnimatePresence>

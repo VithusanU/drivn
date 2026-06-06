@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Circle, CheckCircle2, Trash2, Lock } from 'lucide-react'
+import { Circle, CheckCircle2, Trash2, Lock, Square, CheckSquare } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
 import { useUndoStore } from '@/stores/undoStore'
@@ -13,6 +13,9 @@ import type { Task } from '@/types'
 
 interface TaskItemProps {
   task: Task
+  selectMode?: boolean
+  selected?: boolean
+  onSelect?: (id: string) => void
 }
 
 const URGENCY_DOT: Record<Task['urgency'], string> = {
@@ -21,7 +24,7 @@ const URGENCY_DOT: Record<Task['urgency'], string> = {
   low: 'bg-muted-foreground/30',
 }
 
-export default function TaskItem({ task }: TaskItemProps) {
+export default function TaskItem({ task, selectMode = false, selected = false, onSelect }: TaskItemProps) {
   const [completing, setCompleting] = useState(false)
   const completeTask = useTaskStore((s) => s.completeTask)
   const deleteTask = useTaskStore((s) => s.deleteTask)
@@ -51,6 +54,14 @@ export default function TaskItem({ task }: TaskItemProps) {
     showUndo(`"${task.title}" deleted`, () => undoDeleteTask(task.id, task))
   }
 
+  const handleClick = () => {
+    if (selectMode && onSelect) {
+      onSelect(task.id)
+      return
+    }
+    if (!blocked) router.push(`/focus/${task.id}`)
+  }
+
   return (
     <motion.div
       layout
@@ -62,14 +73,22 @@ export default function TaskItem({ task }: TaskItemProps) {
         'flex items-center gap-3 px-3.5 py-3 rounded-xl',
         'bg-card/50 border border-border/50',
         'cursor-pointer group transition-colors',
+        selected && 'bg-primary/5 border-primary/30',
         blocked
           ? 'opacity-50 hover:opacity-70'
           : 'hover:bg-card hover:border-border active:scale-[0.99]'
       )}
-      onClick={() => router.push(`/focus/${task.id}`)}
+      onClick={handleClick}
     >
-      {/* Checkbox — hidden for blocked tasks */}
-      {blocked ? (
+      {/* Checkbox (select mode) / Complete button / Lock */}
+      {selectMode ? (
+        <div className="flex-shrink-0 w-[18px] h-[18px] flex items-center justify-center">
+          {selected
+            ? <CheckSquare className="w-[18px] h-[18px] text-primary" />
+            : <Square className="w-[18px] h-[18px] text-muted-foreground/30" />
+          }
+        </div>
+      ) : blocked ? (
         <div className="flex-shrink-0 w-[18px] h-[18px] flex items-center justify-center">
           <Lock className="w-3.5 h-3.5 text-muted-foreground/40" />
         </div>
@@ -91,11 +110,16 @@ export default function TaskItem({ task }: TaskItemProps) {
       {/* Content */}
       <div className="flex-1 min-w-0">
         <p className="text-[14px] text-foreground/80 truncate">{task.title}</p>
+        {/* Notes preview */}
+        {task.description && !blocked && (
+          <p className="text-[11px] mt-0.5 text-muted-foreground/40 truncate">{task.description}</p>
+        )}
+        {/* Blocker / due date */}
         {blocked && blockerTask ? (
           <p className="text-[11px] mt-0.5 text-muted-foreground/40 truncate">
             Waiting on: {blockerTask.title}
           </p>
-        ) : task.due_date ? (
+        ) : !task.description && task.due_date ? (
           <p className={cn(
             'text-[11px] mt-0.5',
             isDueDateOverdue ? 'text-destructive/70' : 'text-muted-foreground/50'
@@ -103,22 +127,28 @@ export default function TaskItem({ task }: TaskItemProps) {
             {formatDueDate(task.due_date, task.due_time)}
           </p>
         ) : null}
+        {/* Recurrence badge */}
+        {task.recurrence && task.recurrence !== 'none' && (
+          <span className="inline-block text-[10px] mt-0.5 text-primary/50">↻ {task.recurrence}</span>
+        )}
       </div>
 
       {/* Priority dot */}
       <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', URGENCY_DOT[task.urgency])} />
 
-      {/* Delete (shows on hover) */}
-      <button
-        onClick={handleDelete}
-        className={cn(
-          'flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity',
-          'text-muted-foreground/30 hover:text-destructive/70 p-1'
-        )}
-        aria-label="Delete task"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
+      {/* Delete (shows on hover, hidden in select mode) */}
+      {!selectMode && (
+        <button
+          onClick={handleDelete}
+          className={cn(
+            'flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity',
+            'text-muted-foreground/30 hover:text-destructive/70 p-1'
+          )}
+          aria-label="Delete task"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      )}
     </motion.div>
   )
 }

@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/encryption'
 import type { ScannedTask } from '@/types'
 
-const ADMIN_EMAIL = 'vithusan.business@gmail.com'
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'vithusan.business@gmail.com'
 
 export async function POST(req: Request) {
   // ── Auth ──────────────────────────────────────────────────────────────────

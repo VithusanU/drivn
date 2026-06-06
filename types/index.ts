@@ -17,6 +17,7 @@ export interface UserProfile {
 export type TaskStatus = 'active' | 'completed' | 'archived'
 export type TaskUrgency = 'high' | 'medium' | 'low'
 export type TaskGroup = 'now' | 'soon' | 'later'
+export type TaskRecurrence = 'none' | 'daily' | 'weekly' | 'monthly'
 
 export interface Task {
   id: string
@@ -28,6 +29,7 @@ export interface Task {
   due_date: string | null
   due_time: string | null
   estimated_minutes: number | null
+  recurrence: TaskRecurrence
   created_at: string
   updated_at: string
   completed_at: string | null
@@ -43,17 +45,19 @@ export interface CreateTaskInput {
   due_time?: string | null
   estimated_minutes?: number | null
   blocked_by?: string | null
+  recurrence?: TaskRecurrence
 }
 
 export interface UpdateTaskInput {
   title?: string
-  description?: string
+  description?: string | null
   urgency?: TaskUrgency
   due_date?: string | null
   due_time?: string | null
   estimated_minutes?: number | null
   status?: TaskStatus
   blocked_by?: string | null
+  recurrence?: TaskRecurrence
 }
 
 // Derived — computed client-side
@@ -103,7 +107,7 @@ export interface HabitWithStreak extends Habit {
   completedToday: boolean
   currentStreak: number
   lastDetails?: HabitCompletionDetails | null
-  lastCompletedDate: string | null  // most recent completion date before today
+  lastCompletedDate: string | null
 }
 
 export interface CreateHabitInput {
@@ -112,6 +116,69 @@ export interface CreateHabitInput {
   detail_type?: HabitDetailType
   detail_config?: HabitDetailConfig
   priority?: HabitPriority
+}
+
+// ─── Events ────────────────────────────────────────────────────────────────
+
+export type EventCategory = 'appointment' | 'maintenance' | 'personal' | 'health' | 'other'
+export type EventRecurrence = 'none' | 'weekly' | 'monthly' | 'custom'
+
+export interface CalendarEvent {
+  id: string
+  user_id: string
+  title: string
+  event_date: string     // YYYY-MM-DD
+  event_time: string | null  // HH:MM
+  category: EventCategory
+  recurrence: EventRecurrence
+  recurrence_days: number | null   // for 'custom' recurrence
+  notes: string | null
+  created_at: string
+}
+
+export interface CreateEventInput {
+  title: string
+  event_date: string
+  event_time?: string | null
+  category?: EventCategory
+  recurrence?: EventRecurrence
+  recurrence_days?: number | null
+  notes?: string | null
+}
+
+export interface UpdateEventInput {
+  title?: string
+  event_date?: string
+  event_time?: string | null
+  category?: EventCategory
+  recurrence?: EventRecurrence
+  recurrence_days?: number | null
+  notes?: string | null
+}
+
+export interface EventStore {
+  events: CalendarEvent[]
+  isLoading: boolean
+  hasFetched: boolean
+  fetchEvents: () => Promise<void>
+  createEvent: (input: CreateEventInput) => Promise<CalendarEvent | null>
+  updateEvent: (id: string, input: UpdateEventInput) => Promise<void>
+  deleteEvent: (id: string) => Promise<void>
+  undoDeleteEvent: (id: string, event: CalendarEvent) => Promise<void>
+  getUpcomingEvents: (days?: number) => CalendarEvent[]
+}
+
+// ─── Focus Sessions ────────────────────────────────────────────────────────
+
+export interface FocusSession {
+  id: string
+  user_id: string
+  task_id: string | null
+  task_title: string
+  started_at: string
+  ended_at: string | null
+  minutes_logged: number | null
+  created_at: string
 }
 
 // ─── Streaks ───────────────────────────────────────────────────────────────
@@ -151,6 +218,7 @@ export interface AIRecommendation {
   taskId: string
   reason: string
   quickWinIds: string[]
+  limitReached?: boolean
 }
 
 // ─── Recommendation Engine ─────────────────────────────────────────────────
@@ -174,6 +242,7 @@ export interface TaskStore {
   tasks: Task[]
   isLoading: boolean
   hasFetched: boolean
+  hasMore: boolean
   error: string | null
   fetchTasks: () => Promise<void>
   createTask: (input: CreateTaskInput) => Promise<Task | null>
@@ -223,4 +292,12 @@ export interface AIStore {
   fetching: boolean
   fetchRecommendation: (tasks: Task[], force?: boolean) => Promise<void>
   clear: () => void
+}
+
+// ─── Session Store ─────────────────────────────────────────────────────────
+
+export interface SessionStore {
+  skippedTaskIds: string[]
+  skipTask: (id: string) => void
+  clearSkipped: () => void
 }

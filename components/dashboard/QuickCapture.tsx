@@ -2,11 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff, Link2, Camera } from 'lucide-react'
+import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff, Link2, Camera, LayoutTemplate } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { cn } from '@/lib/utils'
 import { parseVoiceInput, isSpeechRecognitionSupported } from '@/lib/voiceParser'
 import TaskScanner, { type TaskScannerRef } from './TaskScanner'
+import TaskTemplates from './TaskTemplates'
 import type { TaskUrgency } from '@/types'
 
 const URGENCY_OPTIONS: { value: TaskUrgency; label: string }[] = [
@@ -76,6 +77,7 @@ export default function QuickCapture() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [showError, setShowError] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
 
   const [urgency, setUrgency] = useState<TaskUrgency>('medium')
   const [dueDate, setDueDate] = useState<string>('')
@@ -222,6 +224,7 @@ export default function QuickCapture() {
   return (
     <>
     <TaskScanner scannerRef={scannerRef} />
+    <TaskTemplates open={showTemplates} onClose={() => setShowTemplates(false)} />
     <div className={cn(
       'fixed z-20 pb-3',
       'bottom-[60px] left-0 right-0',
@@ -242,6 +245,19 @@ export default function QuickCapture() {
               'bg-card border border-border',
               'shadow-[0_-4px_24px_rgba(0,0,0,0.1)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.35)]'
             )}>
+
+              {/* Templates shortcut */}
+              <button
+                onClick={() => setShowTemplates(true)}
+                className={cn(
+                  'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left',
+                  'border-border/50 text-muted-foreground/50 text-[12px]',
+                  'hover:border-primary/30 hover:text-primary/70 transition-colors'
+                )}
+              >
+                <LayoutTemplate className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Use a template</span>
+              </button>
 
               {/* Urgency */}
               <div className="space-y-2">

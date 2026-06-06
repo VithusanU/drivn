@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Zap, SkipForward, Trash2, Coffee, ArrowRight, Sparkles, RefreshCw } from 'lucide-react'
@@ -8,6 +8,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
 import { useAIStore } from '@/stores/aiStore'
 import { useTimerStore } from '@/stores/timerStore'
+import { useSessionStore } from '@/stores/sessionStore'
 import { getReasonLabel, formatEstimatedTime, getRecommendedTask } from '@/lib/engine/recommendation'
 import { formatDueDate, cn } from '@/lib/utils'
 import type { RecommendationReason } from '@/types'
@@ -29,7 +30,8 @@ function formatTime(seconds: number): string {
 export default function NextBestAction() {
   const deleteTask = useTaskStore((s) => s.deleteTask)
   const tasks = useTaskStore((s) => s.tasks)
-  const [skippedIds, setSkippedIds] = useState<string[]>([])
+  const skippedIds = useSessionStore((s) => s.skippedTaskIds)
+  const skipTask = useSessionStore((s) => s.skipTask)
   const router = useRouter()
 
   const betaModeEnabled = useUserStore((s) => s.betaModeEnabled)
@@ -61,7 +63,7 @@ export default function NextBestAction() {
     }
     const filtered = tasks.filter((t) => !skippedIds.includes(t.id))
     fetchAIRecommendation(filtered)
-  }, [isAIMode, tasks.length, skippedIds.length])
+  }, [isAIMode, tasks.length, skippedIds.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Active timer card ───────────────────────────────────────────────────────
   if (timerTaskId) {
@@ -279,7 +281,7 @@ export default function NextBestAction() {
             Start now
           </button>
           <button
-            onClick={() => setSkippedIds((prev) => [...prev, task!.id])}
+            onClick={() => skipTask(task!.id)}
             className={cn(
               'flex items-center gap-1.5 px-4 py-3 rounded-xl',
               'bg-white/5 border border-white/8 text-white/40 text-sm',

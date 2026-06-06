@@ -12,6 +12,7 @@ import MomentumCard from '@/components/dashboard/MomentumCard'
 import QuickCapture from '@/components/dashboard/QuickCapture'
 import QuickWins from '@/components/dashboard/QuickWins'
 import MotivationalQuote from '@/components/dashboard/MotivationalQuote'
+import UpcomingEvents from '@/components/dashboard/UpcomingEvents'
 
 export default function HomePage() {
   const router = useRouter()
@@ -33,6 +34,9 @@ export default function HomePage() {
       <div className="flex-1 px-4 pb-6 space-y-6 overflow-y-auto no-scrollbar scroll-momentum">
         {/* Core: Next Best Action */}
         <NextBestAction />
+
+        {/* Upcoming events this week */}
+        <UpcomingEvents />
 
         {/* Quick wins strip */}
         <QuickWins />

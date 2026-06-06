@@ -4,9 +4,11 @@ import { useEffect } from 'react'
 import BottomNav from '@/components/layout/BottomNav'
 import SideNav from '@/components/layout/SideNav'
 import UndoToast from '@/components/ui/UndoToast'
+import ErrorBoundary from '@/components/ui/ErrorBoundary'
 import { useTaskStore } from '@/stores/taskStore'
 import { useHabitStore } from '@/stores/habitStore'
 import { useUserStore } from '@/stores/userStore'
+import { useEventStore } from '@/stores/eventStore'
 import { useGlobalTimer } from '@/hooks/useGlobalTimer'
 import { useGlobalSpotifyPlayer } from '@/hooks/useGlobalSpotifyPlayer'
 import { Analytics } from '@/lib/analytics'
@@ -18,6 +20,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const fetchTodayCompletions = useHabitStore((s) => s.fetchTodayCompletions)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
   const fetchStreak = useUserStore((s) => s.fetchStreak)
+  const fetchEvents = useEventStore((s) => s.fetchEvents)
 
   useGlobalTimer()
   useGlobalSpotifyPlayer()
@@ -39,6 +42,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       fetchTodayCompletions(),
       fetchProfile(),
       fetchStreak(),
+      fetchEvents(),
     ])
 
     // Track session start once per day
@@ -59,7 +63,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         Analytics.returnedAfterReminder()
       }
     })
-  }, [fetchTasks, fetchHabits, fetchTodayCompletions, fetchProfile, fetchStreak])
+  }, [fetchTasks, fetchHabits, fetchTodayCompletions, fetchProfile, fetchStreak, fetchEvents])
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -71,7 +75,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <main className="flex-1 min-w-0">
         <div className="max-w-2xl mx-auto px-4 pb-24 md:pb-12 pt-0">
-          {children}
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </div>
       </main>
 

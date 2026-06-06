@@ -1,6 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 function playCompletionSound() {
   try {
@@ -77,140 +78,162 @@ export interface TimerStore {
   fireCompletion: () => void
 }
 
-export const useTimerStore = create<TimerStore>((set, get) => ({
-  taskId: null,
-  taskTitle: null,
-  secondsLeft: 0,
-  totalSeconds: 0,
-  running: false,
-  timeUp: false,
-  endTimeMs: 0,
-  pausedRemainingMs: null,
-
-  breakActive: false,
-  breakSecondsLeft: 0,
-  breakTotalSeconds: 0,
-  breakEndTimeMs: 0,
-
-  initTimer: (taskId, taskTitle, minutes) => {
-    const totalSeconds = minutes * 60
-    set({
-      taskId,
-      taskTitle,
-      secondsLeft: totalSeconds,
-      totalSeconds,
-      running: true,
+export const useTimerStore = create<TimerStore>()(
+  persist(
+    (set, get) => ({
+      taskId: null,
+      taskTitle: null,
+      secondsLeft: 0,
+      totalSeconds: 0,
+      running: false,
       timeUp: false,
-      endTimeMs: Date.now() + totalSeconds * 1000,
+      endTimeMs: 0,
       pausedRemainingMs: null,
+
       breakActive: false,
       breakSecondsLeft: 0,
       breakTotalSeconds: 0,
       breakEndTimeMs: 0,
-    })
-  },
 
-  clearTimer: () => set({
-    taskId: null,
-    taskTitle: null,
-    secondsLeft: 0,
-    totalSeconds: 0,
-    running: false,
-    timeUp: false,
-    endTimeMs: 0,
-    pausedRemainingMs: null,
-    breakActive: false,
-    breakSecondsLeft: 0,
-    breakTotalSeconds: 0,
-    breakEndTimeMs: 0,
-  }),
+      initTimer: (taskId, taskTitle, minutes) => {
+        const totalSeconds = minutes * 60
+        set({
+          taskId,
+          taskTitle,
+          secondsLeft: totalSeconds,
+          totalSeconds,
+          running: true,
+          timeUp: false,
+          endTimeMs: Date.now() + totalSeconds * 1000,
+          pausedRemainingMs: null,
+          breakActive: false,
+          breakSecondsLeft: 0,
+          breakTotalSeconds: 0,
+          breakEndTimeMs: 0,
+        })
+      },
 
-  pause: () => {
-    const { endTimeMs } = get()
-    set({ running: false, pausedRemainingMs: endTimeMs - Date.now() })
-  },
+      clearTimer: () => set({
+        taskId: null,
+        taskTitle: null,
+        secondsLeft: 0,
+        totalSeconds: 0,
+        running: false,
+        timeUp: false,
+        endTimeMs: 0,
+        pausedRemainingMs: null,
+        breakActive: false,
+        breakSecondsLeft: 0,
+        breakTotalSeconds: 0,
+        breakEndTimeMs: 0,
+      }),
 
-  resume: () => {
-    const { pausedRemainingMs, secondsLeft } = get()
-    const remainingMs = pausedRemainingMs ?? secondsLeft * 1000
-    set({ running: true, endTimeMs: Date.now() + remainingMs, pausedRemainingMs: null })
-  },
+      pause: () => {
+        const { endTimeMs } = get()
+        set({ running: false, pausedRemainingMs: endTimeMs - Date.now() })
+      },
 
-  addTime: (minutes) => {
-    const { endTimeMs, totalSeconds, pausedRemainingMs } = get()
-    const extraMs = minutes * 60 * 1000
-    set({
-      endTimeMs: endTimeMs + extraMs,
-      totalSeconds: totalSeconds + minutes * 60,
-      timeUp: false,
-      running: true,
-      ...(pausedRemainingMs !== null ? { pausedRemainingMs: pausedRemainingMs + extraMs } : {}),
-    })
-  },
+      resume: () => {
+        const { pausedRemainingMs, secondsLeft } = get()
+        const remainingMs = pausedRemainingMs ?? secondsLeft * 1000
+        set({ running: true, endTimeMs: Date.now() + remainingMs, pausedRemainingMs: null })
+      },
 
-  tick: () => {
-    const state = get()
-    if (!state.taskId) return
+      addTime: (minutes) => {
+        const { endTimeMs, totalSeconds, pausedRemainingMs } = get()
+        const extraMs = minutes * 60 * 1000
+        set({
+          endTimeMs: endTimeMs + extraMs,
+          totalSeconds: totalSeconds + minutes * 60,
+          timeUp: false,
+          running: true,
+          ...(pausedRemainingMs !== null ? { pausedRemainingMs: pausedRemainingMs + extraMs } : {}),
+        })
+      },
 
-    if (state.breakActive) {
-      const remaining = Math.round((state.breakEndTimeMs - Date.now()) / 1000)
-      if (remaining <= 0) {
-        // Break over — auto-resume task timer
-        const newEndTimeMs = Date.now() + (state.pausedRemainingMs ?? state.secondsLeft * 1000)
+      tick: () => {
+        const state = get()
+        if (!state.taskId) return
+
+        if (state.breakActive) {
+          const remaining = Math.round((state.breakEndTimeMs - Date.now()) / 1000)
+          if (remaining <= 0) {
+            const newEndTimeMs = Date.now() + (state.pausedRemainingMs ?? state.secondsLeft * 1000)
+            set({
+              breakActive: false,
+              breakSecondsLeft: 0,
+              endTimeMs: newEndTimeMs,
+              pausedRemainingMs: null,
+              running: true,
+            })
+          } else {
+            set({ breakSecondsLeft: remaining })
+          }
+          return
+        }
+
+        if (!state.running || state.timeUp) return
+
+        const remaining = Math.round((state.endTimeMs - Date.now()) / 1000)
+        if (remaining <= 0) {
+          get().fireCompletion()
+        } else {
+          set({ secondsLeft: remaining })
+        }
+      },
+
+      startBreak: (minutes) => {
+        const { endTimeMs, running, pausedRemainingMs, secondsLeft } = get()
+        const remainingMs = running
+          ? endTimeMs - Date.now()
+          : (pausedRemainingMs ?? secondsLeft * 1000)
+        set({
+          running: false,
+          pausedRemainingMs: Math.max(0, remainingMs),
+          breakActive: true,
+          breakTotalSeconds: minutes * 60,
+          breakSecondsLeft: minutes * 60,
+          breakEndTimeMs: Date.now() + minutes * 60 * 1000,
+        })
+      },
+
+      endBreak: () => {
+        const { pausedRemainingMs, secondsLeft } = get()
+        const remainingMs = pausedRemainingMs ?? secondsLeft * 1000
         set({
           breakActive: false,
           breakSecondsLeft: 0,
-          endTimeMs: newEndTimeMs,
+          breakEndTimeMs: 0,
+          endTimeMs: Date.now() + remainingMs,
           pausedRemainingMs: null,
           running: true,
         })
-      } else {
-        set({ breakSecondsLeft: remaining })
-      }
-      return
+      },
+
+      fireCompletion: () => {
+        set({ running: false, secondsLeft: 0, timeUp: true })
+        playCompletionSound()
+        showTimerNotification(get().taskTitle ?? undefined)
+      },
+    }),
+    {
+      name: 'drivn-timer',
+      // On rehydration the wall-clock endTimeMs auto-corrects remaining time
+      // Only persist the fields needed to restore state
+      partialize: (state) => ({
+        taskId: state.taskId,
+        taskTitle: state.taskTitle,
+        secondsLeft: state.secondsLeft,
+        totalSeconds: state.totalSeconds,
+        running: state.running,
+        timeUp: state.timeUp,
+        endTimeMs: state.endTimeMs,
+        pausedRemainingMs: state.pausedRemainingMs,
+        breakActive: state.breakActive,
+        breakSecondsLeft: state.breakSecondsLeft,
+        breakTotalSeconds: state.breakTotalSeconds,
+        breakEndTimeMs: state.breakEndTimeMs,
+      }),
     }
-
-    if (!state.running || state.timeUp) return
-
-    const remaining = Math.round((state.endTimeMs - Date.now()) / 1000)
-    if (remaining <= 0) {
-      get().fireCompletion()
-    } else {
-      set({ secondsLeft: remaining })
-    }
-  },
-
-  startBreak: (minutes) => {
-    const { endTimeMs, running, pausedRemainingMs, secondsLeft } = get()
-    const remainingMs = running
-      ? endTimeMs - Date.now()
-      : (pausedRemainingMs ?? secondsLeft * 1000)
-    set({
-      running: false,
-      pausedRemainingMs: Math.max(0, remainingMs),
-      breakActive: true,
-      breakTotalSeconds: minutes * 60,
-      breakSecondsLeft: minutes * 60,
-      breakEndTimeMs: Date.now() + minutes * 60 * 1000,
-    })
-  },
-
-  endBreak: () => {
-    const { pausedRemainingMs, secondsLeft } = get()
-    const remainingMs = pausedRemainingMs ?? secondsLeft * 1000
-    set({
-      breakActive: false,
-      breakSecondsLeft: 0,
-      breakEndTimeMs: 0,
-      endTimeMs: Date.now() + remainingMs,
-      pausedRemainingMs: null,
-      running: true,
-    })
-  },
-
-  fireCompletion: () => {
-    set({ running: false, secondsLeft: 0, timeUp: true })
-    playCompletionSound()
-    showTimerNotification(get().taskTitle ?? undefined)
-  },
-}))
+  )
+)

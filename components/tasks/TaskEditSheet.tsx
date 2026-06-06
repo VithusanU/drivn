@@ -2,10 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Check, Link2 } from 'lucide-react'
+import { X, Check, Link2, Repeat } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { cn } from '@/lib/utils'
-import type { Task, TaskUrgency } from '@/types'
+import type { Task, TaskUrgency, TaskRecurrence } from '@/types'
+
+const RECURRENCE_OPTIONS: { value: TaskRecurrence; label: string }[] = [
+  { value: 'none', label: 'No repeat' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+]
 
 const URGENCY_OPTIONS: { value: TaskUrgency; label: string }[] = [
   { value: 'high', label: 'High' },
@@ -77,22 +84,26 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
   const tasks = useTaskStore((s) => s.tasks)
 
   const [title, setTitle] = useState(task.title)
+  const [description, setDescription] = useState<string>(task.description ?? '')
   const [urgency, setUrgency] = useState<TaskUrgency>(task.urgency)
   const [dueDate, setDueDate] = useState<string>(task.due_date ?? '')
   const [dueTime, setDueTime] = useState<string>(task.due_time ?? '')
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(task.estimated_minutes ?? null)
   const [blockedBy, setBlockedBy] = useState<string | null>(task.blocked_by ?? null)
+  const [recurrence, setRecurrence] = useState<TaskRecurrence>((task.recurrence as TaskRecurrence) ?? 'none')
   const [saving, setSaving] = useState(false)
 
   // Re-sync state from the latest task data every time the sheet opens
   useEffect(() => {
     if (open) {
       setTitle(task.title)
+      setDescription(task.description ?? '')
       setUrgency(task.urgency)
       setDueDate(task.due_date ?? '')
       setDueTime(task.due_time ?? '')
       setEstimatedMinutes(task.estimated_minutes ?? null)
       setBlockedBy(task.blocked_by ?? null)
+      setRecurrence((task.recurrence as TaskRecurrence) ?? 'none')
     }
   }, [open])
 
@@ -105,11 +116,13 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
     setSaving(true)
     await updateTask(task.id, {
       title: title.trim(),
+      description: description.trim() || null,
       urgency,
       due_date: dueDate || null,
       due_time: dueTime || null,
       estimated_minutes: estimatedMinutes,
       blocked_by: blockedBy,
+      recurrence,
     })
     setSaving(false)
     onClose()
@@ -156,6 +169,22 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
                 'focus:border-primary/40 transition-colors'
               )}
             />
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground/60">Notes (optional)</p>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Add more detail…"
+                rows={2}
+                className={cn(
+                  'w-full bg-background border border-border rounded-xl px-3 py-2.5 resize-none',
+                  'text-[13px] text-foreground/70 outline-none placeholder:text-muted-foreground/30',
+                  'focus:border-primary/40 transition-colors'
+                )}
+              />
+            </div>
 
             {/* Urgency */}
             <div className="space-y-2">
@@ -287,6 +316,29 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
                   Clear
                 </button>
               )}
+            </div>
+
+            {/* Recurrence */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground/60">
+                <Repeat className="w-3 h-3 inline mr-1" />Repeat
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                {RECURRENCE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setRecurrence(opt.value)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-full border text-[12px] font-medium transition-all',
+                      recurrence === opt.value
+                        ? 'bg-primary/10 border-primary/40 text-primary'
+                        : 'border-border/50 text-muted-foreground/50 hover:border-primary/30 hover:text-primary/60'
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Depends on */}

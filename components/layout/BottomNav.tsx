@@ -1,9 +1,11 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, Heart, User, ShieldCheck, BarChart2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { APP_VERSION } from '@/lib/version'
 import ThemeToggle from './ThemeToggle'
 import { useUserStore } from '@/stores/userStore'
 
@@ -14,11 +16,26 @@ const BASE_NAV = [
   { href: '/profile', label: 'Profile', icon: User },
 ]
 
-const ADMIN_EMAIL = 'vithusan.business@gmail.com'
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? 'vithusan.business@gmail.com'
+const VERSION_KEY = 'drivn_seen_version'
 
 export default function BottomNav() {
   const pathname = usePathname()
   const profile = useUserStore((s) => s.profile)
+  const [hasNewVersion, setHasNewVersion] = useState(false)
+
+  useEffect(() => {
+    const seen = localStorage.getItem(VERSION_KEY)
+    setHasNewVersion(seen !== APP_VERSION)
+  }, [])
+
+  // Mark as seen when user visits profile
+  useEffect(() => {
+    if (pathname === '/profile' && hasNewVersion) {
+      localStorage.setItem(VERSION_KEY, APP_VERSION)
+      setHasNewVersion(false)
+    }
+  }, [pathname, hasNewVersion])
 
   const navItems = profile?.email === ADMIN_EMAIL
     ? [...BASE_NAV, { href: '/admin', label: 'Admin', icon: ShieldCheck }]
@@ -33,6 +50,7 @@ export default function BottomNav() {
     )}>
       {navItems.map(({ href, label, icon: Icon }) => {
         const isActive = pathname === href
+        const showBadge = href === '/profile' && hasNewVersion
         return (
           <Link
             key={href}
@@ -43,7 +61,12 @@ export default function BottomNav() {
               isActive ? 'text-primary' : 'text-muted-foreground'
             )}
           >
-            <Icon className="w-5 h-5" strokeWidth={isActive ? 2 : 1.5} />
+            <div className="relative">
+              <Icon className="w-5 h-5" strokeWidth={isActive ? 2 : 1.5} />
+              {showBadge && (
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-drivn-green border border-background" />
+              )}
+            </div>
             <span className="text-[10px] font-medium">{label}</span>
           </Link>
         )

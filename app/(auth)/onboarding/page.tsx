@@ -3,7 +3,7 @@
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, X } from 'lucide-react'
+import { Check, X, Heart, Zap, Repeat } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
 import { cn } from '@/lib/utils'
@@ -72,7 +72,7 @@ function OnboardingContent() {
     await completeTask(createdTask.id)
     await fetchStreak()
     setSaving(false)
-    setStep(3)
+    setStep(3) // habits step
   }
 
   const handleFinish = async () => {
@@ -90,7 +90,7 @@ function OnboardingContent() {
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto px-6">
       {/* Progress bar */}
       <div className="flex gap-1.5 pt-8 pb-2">
-        {[0, 1, 2, 3].map((i) => (
+        {[0, 1, 2, 3, 4].map((i) => (
           <div
             key={i}
             className={cn(
@@ -290,10 +290,85 @@ function OnboardingContent() {
             </motion.div>
           )}
 
-          {/* ── Screen 4: Reinforcement ─────────────────────────────── */}
+          {/* ── Screen 4: Habits intro ──────────────────────────────── */}
           {step === 3 && (
             <motion.div
               key="step3"
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.22 }}
+              className="flex flex-col flex-1 pt-8"
+            >
+              <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-5">
+                Build consistency
+              </p>
+              <h1 className="text-[26px] font-medium text-foreground leading-snug mb-2">
+                Habits keep you moving.
+              </h1>
+              <p className="text-[14px] text-muted-foreground leading-relaxed mb-6">
+                Alongside tasks, Drivn lets you track daily habits. Tiny consistent actions compound into real results.
+              </p>
+
+              {/* Habit examples */}
+              <div className="space-y-3 mb-6">
+                {[
+                  { emoji: '💪', name: 'Exercise', detail: 'Build physical momentum', color: 'text-primary' },
+                  { emoji: '📖', name: 'Read 10 pages', detail: 'Feed your mind daily', color: 'text-amber-400' },
+                  { emoji: '💧', name: 'Drink water', detail: 'Simple health wins', color: 'text-blue-400' },
+                ].map(({ emoji, name, detail, color }) => (
+                  <div
+                    key={name}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-card"
+                  >
+                    <span className="text-xl">{emoji}</span>
+                    <div className="flex-1">
+                      <p className="text-[13px] font-medium text-foreground">{name}</p>
+                      <p className="text-[11px] text-muted-foreground/60">{detail}</p>
+                    </div>
+                    <div className={cn('w-5 h-5 rounded-full border-2 border-current flex items-center justify-center', color)}>
+                      <Check className="w-3 h-3" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Feature highlights */}
+              <div className="bg-secondary/60 rounded-2xl p-4 space-y-3">
+                {[
+                  { icon: Repeat, text: 'Track habits every day with a single tap' },
+                  { icon: Zap, text: 'Log habits alongside tasks after focus sessions' },
+                  { icon: Heart, text: 'Build streaks and see your consistency grow' },
+                ].map(({ icon: Icon, text }) => (
+                  <div key={text} className="flex items-center gap-3">
+                    <Icon className="w-3.5 h-3.5 text-primary/60 flex-shrink-0" />
+                    <span className="text-[13px] text-foreground/80">{text}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-auto pt-8 space-y-3">
+                <button
+                  onClick={() => setStep(4)}
+                  className="w-full py-4 rounded-2xl border border-border text-[15px] font-medium text-foreground hover:bg-secondary/50 transition-colors"
+                >
+                  Got it
+                </button>
+                <button
+                  onClick={() => { router.push('/habits') }}
+                  className="w-full py-2 text-[13px] text-primary/70 hover:text-primary transition-colors"
+                >
+                  Set up habits now →
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Screen 5: Reinforcement ──────────────────────────────── */}
+          {step === 4 && (
+            <motion.div
+              key="step4"
               variants={slideVariants}
               initial="enter"
               animate="center"

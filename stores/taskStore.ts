@@ -4,12 +4,25 @@ import { create } from 'zustand'
 import { createClient } from '@/lib/supabase/client'
 import { getRecommendedTask, groupTasks, getQuickWins } from '@/lib/engine/recommendation'
 import { Analytics } from '@/lib/analytics'
-import type { Task, TaskStore, CreateTaskInput, UpdateTaskInput, TaskGroup, RecommendedTask } from '@/types'
+import type { Task, TaskStore, CreateTaskInput, UpdateTaskInput, TaskGroup, RecommendedTask, TaskRecurrence } from '@/types'
+
+const TASK_LIMIT = 100
+
+// Calculate next due date for recurring tasks
+function nextDueDate(currentDate: string | null, recurrence: TaskRecurrence): string | null {
+  if (!currentDate || recurrence === 'none') return null
+  const d = new Date(currentDate)
+  if (recurrence === 'daily') d.setDate(d.getDate() + 1)
+  else if (recurrence === 'weekly') d.setDate(d.getDate() + 7)
+  else if (recurrence === 'monthly') d.setMonth(d.getMonth() + 1)
+  return d.toISOString().split('T')[0]
+}
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
   tasks: [],
   isLoading: false,
   hasFetched: false,
+  hasMore: false,
   error: null,
 
   fetchTasks: async () => {
@@ -21,9 +34,15 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
+        .limit(TASK_LIMIT)
 
       if (error) throw error
-      set({ tasks: data ?? [], isLoading: false, hasFetched: true })
+      set({
+        tasks: data ?? [],
+        isLoading: false,
+        hasFetched: true,
+        hasMore: (data?.length ?? 0) === TASK_LIMIT,
+      })
     } catch (err) {
       set({ error: (err as Error).message, isLoading: false, hasFetched: true })
     }
@@ -45,6 +64,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         due_time: input.due_time ?? null,
         estimated_minutes: input.estimated_minutes ?? null,
         blocked_by: input.blocked_by ?? null,
+        recurrence: input.recurrence ?? 'none',
       })
       .select()
       .single()
@@ -78,6 +98,8 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
+    const task = get().tasks.find((t) => t.id === id)
+
     // Mark task as completed
     await supabase
       .from('tasks')
@@ -92,6 +114,22 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       tasks: state.tasks.filter((t) => t.id !== id),
     }))
     Analytics.taskCompleted()
+
+    // If recurring, auto-create next occurrence
+    if (task && task.recurrence !== 'none') {
+      const nextDate = nextDueDate(task.due_date, task.recurrence as TaskRecurrence)
+      if (nextDate) {
+        await get().createTask({
+          title: task.title,
+          description: task.description ?? undefined,
+          urgency: task.urgency,
+          due_date: nextDate,
+          due_time: task.due_time,
+          estimated_minutes: task.estimated_minutes,
+          recurrence: task.recurrence as TaskRecurrence,
+        })
+      }
+    }
   },
 
   deleteTask: async (id: string) => {
