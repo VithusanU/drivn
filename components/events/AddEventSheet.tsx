@@ -48,12 +48,14 @@ export default function AddEventSheet({ open, onClose, editingEvent }: Props) {
   const [recurrenceDays, setRecurrenceDays] = useState(editingEvent?.recurrence_days ?? 14)
   const [notes, setNotes] = useState(editingEvent?.notes ?? '')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState(false)
 
   const todayStr = localDateStr(new Date())
 
   const handleSave = async () => {
     if (!title.trim() || saving) return
     setSaving(true)
+    setSaveError(false)
 
     const payload: CreateEventInput = {
       title: title.trim(),
@@ -67,12 +69,17 @@ export default function AddEventSheet({ open, onClose, editingEvent }: Props) {
 
     if (editingEvent) {
       await updateEvent(editingEvent.id, payload as UpdateEventInput)
+      setSaving(false)
+      onClose()
     } else {
-      await createEvent(payload)
+      const result = await createEvent(payload)
+      setSaving(false)
+      if (result) {
+        onClose()
+      } else {
+        setSaveError(true)
+      }
     }
-
-    setSaving(false)
-    onClose()
   }
 
   const handleDelete = async () => {
@@ -259,6 +266,11 @@ export default function AddEventSheet({ open, onClose, editingEvent }: Props) {
 
             {/* Footer */}
             <div className="px-5 py-4 flex-shrink-0 border-t border-border/50 space-y-2">
+              {saveError && (
+                <p className="text-[12px] text-destructive/70 text-center">
+                  Failed to save — make sure the database migration has been run.
+                </p>
+              )}
               <button
                 onClick={handleSave}
                 disabled={!title.trim() || saving}

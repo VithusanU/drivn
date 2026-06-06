@@ -2,12 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff, Link2, Camera, LayoutTemplate } from 'lucide-react'
+import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff, Link2, Camera, LayoutTemplate, CalendarPlus } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { cn } from '@/lib/utils'
 import { parseVoiceInput, isSpeechRecognitionSupported } from '@/lib/voiceParser'
 import TaskScanner, { type TaskScannerRef } from './TaskScanner'
 import TaskTemplates from './TaskTemplates'
+import AddEventSheet from '@/components/events/AddEventSheet'
 import type { TaskUrgency } from '@/types'
 
 const URGENCY_OPTIONS: { value: TaskUrgency; label: string }[] = [
@@ -78,6 +79,7 @@ export default function QuickCapture() {
   const [showError, setShowError] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [showAddEvent, setShowAddEvent] = useState(false)
 
   const [urgency, setUrgency] = useState<TaskUrgency>('medium')
   const [dueDate, setDueDate] = useState<string>('')
@@ -225,6 +227,7 @@ export default function QuickCapture() {
     <>
     <TaskScanner scannerRef={scannerRef} />
     <TaskTemplates open={showTemplates} onClose={() => setShowTemplates(false)} />
+    <AddEventSheet open={showAddEvent} onClose={() => setShowAddEvent(false)} />
     <div className={cn(
       'fixed z-20 pb-3',
       'bottom-[60px] left-0 right-0',
@@ -494,6 +497,15 @@ export default function QuickCapture() {
             voiceState === 'listening' && 'placeholder:text-red-400/60'
           )}
         />
+
+        {/* Calendar / add event button */}
+        <button
+          onClick={() => setShowAddEvent(true)}
+          aria-label="Add event"
+          className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all text-muted-foreground/30 hover:text-muted-foreground/60"
+        >
+          <CalendarPlus className="w-3.5 h-3.5" />
+        </button>
 
         {/* Camera / scan button */}
         <button
