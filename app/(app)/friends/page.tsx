@@ -235,20 +235,29 @@ function FriendsPageInner() {
           <p className="text-[13px] text-muted-foreground animate-pulse">Loading…</p>
         </div>
       ) : friends.length === 0 ? (
-        <button
-          onClick={() => setAddOpen(true)}
-          className={cn(
+        <div className="space-y-3">
+          <div className={cn(
             'w-full flex flex-col items-center gap-3 px-4 py-8 rounded-2xl border border-dashed',
-            'border-border/40 text-muted-foreground/40 hover:border-primary/30 hover:text-primary/50',
-            'transition-colors'
-          )}
-        >
-          <Users className="w-8 h-8" />
-          <div className="text-center">
-            <p className="text-[14px] font-medium">No friends yet</p>
-            <p className="text-[12px] mt-0.5">Add friends to see their activity</p>
+            'border-border/40 text-muted-foreground/40'
+          )}>
+            <div className="text-3xl">👥</div>
+            <div className="text-center">
+              <p className="text-[14px] font-medium text-foreground/70">No friends yet</p>
+              <p className="text-[12px] text-muted-foreground/50 mt-1 max-w-[220px]">
+                Add friends to see who&apos;s focused, compare streaks, and stay accountable together.
+              </p>
+            </div>
           </div>
-        </button>
+          <button
+            onClick={() => setAddOpen(true)}
+            className={cn(
+              'w-full py-3 rounded-xl text-[14px] font-medium',
+              'bg-primary text-primary-foreground transition-all hover:bg-primary/90 active:scale-[0.98]'
+            )}
+          >
+            Add a friend
+          </button>
+        </div>
       ) : (
         <div className="space-y-2">
           <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground">

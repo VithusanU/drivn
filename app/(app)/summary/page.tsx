@@ -38,6 +38,13 @@ interface DailyInsight {
   habitsToday: number
 }
 
+interface AllTimeStats {
+  totalFocusMinutes: number
+  totalSessions: number
+  totalTasksCompleted: number
+  longestFocusStreakDays: number
+}
+
 // Mon–Sun week order
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -77,6 +84,7 @@ export default function SummaryPage() {
   const [weeklyInsight, setWeeklyInsight] = useState<WeeklyInsight | null>(null)
   const [dailyInsight, setDailyInsight] = useState<DailyInsight | null>(null)
   const [recentSessions, setRecentSessions] = useState<FocusSession[]>([])
+  const [allTimeStats, setAllTimeStats] = useState<AllTimeStats | null>(null)
   const [statsView, setStatsView] = useState<'today' | 'week'>('today')
 
   const fetchWeeklyInsights = useCallback(async () => {
@@ -99,6 +107,9 @@ export default function SummaryPage() {
       { data: todayTasks },
       { data: todaySessions },
       { data: todayHabits },
+      // All-time stats
+      { data: allTimeSessions },
+      { count: allTimeTaskCount },
     ] = await Promise.all([
       supabase.from('tasks').select('completed_at').eq('status', 'completed')
         .gte('completed_at', `${weekStart}T00:00:00`).lte('completed_at', `${weekEnd}T23:59:59`),
@@ -119,6 +130,10 @@ export default function SummaryPage() {
         .gte('started_at', `${todayStr}T00:00:00`).lte('started_at', `${todayStr}T23:59:59`),
       // Today's habits
       supabase.from('habit_completions').select('id').eq('completed_date', todayStr),
+      // All-time focus sessions (minutes + started_at for streak calc)
+      supabase.from('focus_sessions').select('minutes_logged, started_at').order('started_at', { ascending: true }),
+      // All-time tasks completed
+      supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('status', 'completed'),
     ])
 
     // Most productive day this week
@@ -152,6 +167,40 @@ export default function SummaryPage() {
       habitsToday: todayHabits?.length ?? 0,
     })
     setRecentSessions((recentFive ?? []) as FocusSession[])
+
+    // All-time stats
+    const totalFocusMinutes = (allTimeSessions ?? []).reduce((s: number, f: any) => s + (f.minutes_logged ?? 0), 0)
+    const totalSessions = (allTimeSessions ?? []).length
+
+    // Calculate longest consecutive daily focus streak
+    const focusDays = new Set<string>(
+      (allTimeSessions ?? []).map((f: any) => format(new Date(f.started_at), 'yyyy-MM-dd'))
+    )
+    const sortedDays = Array.from(focusDays).sort()
+    let longestStreak = 0
+    let currentStreak = 0
+    for (let i = 0; i < sortedDays.length; i++) {
+      if (i === 0) {
+        currentStreak = 1
+      } else {
+        const prev = new Date(sortedDays[i - 1])
+        const curr = new Date(sortedDays[i])
+        const diffDays = Math.round((curr.getTime() - prev.getTime()) / 86400000)
+        if (diffDays === 1) {
+          currentStreak++
+        } else {
+          currentStreak = 1
+        }
+      }
+      longestStreak = Math.max(longestStreak, currentStreak)
+    }
+
+    setAllTimeStats({
+      totalFocusMinutes,
+      totalSessions,
+      totalTasksCompleted: allTimeTaskCount ?? 0,
+      longestFocusStreakDays: longestStreak,
+    })
   }, [])
 
   const fetchMonth = useCallback(async (m: Date) => {
@@ -341,6 +390,47 @@ export default function SummaryPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* All-time stats */}
+      {allTimeStats && (allTimeStats.totalSessions > 0 || allTimeStats.totalTasksCompleted > 0) && (
+        <div>
+          <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3">
+            All time
+          </p>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="rounded-xl border border-border bg-card p-3.5">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Clock className="w-3 h-3 text-primary/60" />
+                <p className="text-[10px] text-muted-foreground/60">Total focus</p>
+              </div>
+              <p className="text-2xl font-semibold text-primary">
+                {allTimeStats.totalFocusMinutes < 60
+                  ? `${allTimeStats.totalFocusMinutes}m`
+                  : `${Math.floor(allTimeStats.totalFocusMinutes / 60)}h${allTimeStats.totalFocusMinutes % 60 ? ` ${allTimeStats.totalFocusMinutes % 60}m` : ''}`}
+              </p>
+              <p className="text-[11px] text-muted-foreground/50 mt-0.5">{allTimeStats.totalSessions} sessions</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-3.5">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Target className="w-3 h-3 text-primary/60" />
+                <p className="text-[10px] text-muted-foreground/60">Tasks done</p>
+              </div>
+              <p className="text-2xl font-semibold text-primary">{allTimeStats.totalTasksCompleted}</p>
+              <p className="text-[11px] text-muted-foreground/50 mt-0.5">all time</p>
+            </div>
+            {allTimeStats.longestFocusStreakDays > 1 && (
+              <div className="rounded-xl border border-border bg-card p-3.5 col-span-2">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Flame className="w-3 h-3 text-amber-400/70" />
+                  <p className="text-[10px] text-muted-foreground/60">Longest focus streak</p>
+                </div>
+                <p className="text-2xl font-semibold text-amber-400">{allTimeStats.longestFocusStreakDays}</p>
+                <p className="text-[11px] text-muted-foreground/50 mt-0.5">consecutive days with a session</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

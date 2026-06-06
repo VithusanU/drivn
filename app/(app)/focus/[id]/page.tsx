@@ -53,13 +53,35 @@ export default function FocusModePage({ params }: FocusModePageProps) {
   const [matchingHabit, setMatchingHabit] = useState<HabitWithStreak | null>(null)
 
   const sessionStartRef = useRef<Date>(new Date())
+  // Tracks whether the session has been finalized (completed or saved on unmount)
+  const sessionFinalizedRef = useRef(false)
   const task = tasks.find((t) => t.id === params.id)
 
   useEffect(() => {
+    if (!task) return
+    const capturedTask = task
     sessionStartRef.current = new Date()
-    if (task) {
-      useTaskStore.getState().updateTask(task.id, { last_engaged_at: new Date().toISOString() } as any)
-      Analytics.focusSessionStarted(task.id, !!task.estimated_minutes)
+    sessionFinalizedRef.current = false
+    useTaskStore.getState().updateTask(task.id, { last_engaged_at: new Date().toISOString() } as any)
+    Analytics.focusSessionStarted(task.id, !!task.estimated_minutes)
+
+    // Save session on unmount (user navigated away without completing)
+    return () => {
+      if (sessionFinalizedRef.current) return
+      const endedAt = new Date()
+      const minutesLogged = Math.round((endedAt.getTime() - sessionStartRef.current.getTime()) / 60000)
+      if (minutesLogged < 1) return // Skip sub-minute sessions
+      createClient().auth.getUser().then(({ data: { user } }) => {
+        if (!user) return
+        createClient().from('focus_sessions').insert({
+          user_id: user.id,
+          task_id: capturedTask.id,
+          task_title: capturedTask.title,
+          started_at: sessionStartRef.current.toISOString(),
+          ended_at: endedAt.toISOString(),
+          minutes_logged: minutesLogged,
+        }).then().catch(() => {})
+      }).catch(() => {})
     }
   }, [task?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -96,6 +118,7 @@ export default function FocusModePage({ params }: FocusModePageProps) {
 
   const handleComplete = async () => {
     if (!task) return
+    sessionFinalizedRef.current = true // Prevent unmount cleanup from double-logging
     setCompleting(true)
     useTimerStore.getState().clearTimer()
     Analytics.focusSessionCompleted(task.id)

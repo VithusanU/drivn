@@ -40,7 +40,10 @@ export default function TaskGroups() {
   const filteredTasks = useMemo(() => {
     if (!query) return tasks.filter((t) => t.status === 'active')
     return tasks.filter(
-      (t) => t.status === 'active' && t.title.toLowerCase().includes(query)
+      (t) => t.status === 'active' && (
+        t.title.toLowerCase().includes(query) ||
+        (t.description ?? '').toLowerCase().includes(query)
+      )
     )
   }, [tasks, query])
 

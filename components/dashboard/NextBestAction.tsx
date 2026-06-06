@@ -225,8 +225,10 @@ export default function NextBestAction() {
         className="rounded-2xl border border-border bg-card p-5 text-center"
       >
         <div className="text-2xl mb-2">✨</div>
-        <p className="text-sm font-medium text-foreground">All clear.</p>
-        <p className="text-xs text-muted-foreground mt-1">Add a task to get started.</p>
+        <p className="text-sm font-medium text-foreground">You&apos;re all clear.</p>
+        <p className="text-xs text-muted-foreground mt-1 max-w-[200px] mx-auto leading-relaxed">
+          Nothing left to do. Use the + button below to capture your next task.
+        </p>
       </motion.div>
     )
   }
