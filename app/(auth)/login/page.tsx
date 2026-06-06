@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -12,23 +13,20 @@ function detectInAppBrowser(): boolean {
   if (typeof navigator === 'undefined') return false
   const ua = navigator.userAgent || ''
   return (
-    /LinkedInApp/i.test(ua) ||           // LinkedIn iOS/Android native app
-    /FBAN|FBAV/i.test(ua) ||             // Facebook
-    /Instagram/i.test(ua) ||             // Instagram
-    (/\bwv\b/.test(ua) && /LinkedIn/i.test(ua)) // Android WebView opened by LinkedIn
+    /LinkedInApp/i.test(ua) ||
+    /FBAN|FBAV/i.test(ua) ||
+    /Instagram/i.test(ua) ||
+    (/\bwv\b/.test(ua) && /LinkedIn/i.test(ua))
   )
 }
 
-/** Attempt to open the current URL in the device's real browser */
 function openInExternalBrowser() {
   const url = window.location.href
   const ua = navigator.userAgent || ''
-  // iOS: x-safari-https:// tells the OS to hand off to Safari
   if (/iPhone|iPad|iPod/i.test(ua)) {
     window.location.href = url.replace(/^https?:\/\//, 'x-safari-https://')
     return
   }
-  // Android: intent:// scheme opens in Chrome
   if (/Android/i.test(ua)) {
     const intentUrl =
       'intent://' +
@@ -37,14 +35,17 @@ function openInExternalBrowser() {
     window.location.href = intentUrl
     return
   }
-  // Desktop fallback — just open a new tab
   window.open(url, '_blank')
 }
 
+type Step = 'email' | 'code'
+
 export default function LoginPage() {
+  const router = useRouter()
+  const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
-  const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isInApp, setIsInApp] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -68,18 +69,43 @@ export default function LoginPage() {
     if (error) { setError(error.message); setLoading(false) }
   }
 
-  const handleMagicLink = async (e: React.FormEvent) => {
+  // Step 1: send the OTP code to the user's email
+  const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email.trim()) return
     setLoading(true)
     setError(null)
     Analytics.signupStarted('email')
+    // No emailRedirectTo → Supabase sends a 6-digit code instead of a magic link
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     })
-    if (error) { setError(error.message); setLoading(false) }
-    else { setSent(true); setLoading(false) }
+    setLoading(false)
+    if (error) {
+      setError(error.message)
+    } else {
+      setStep('code')
+    }
+  }
+
+  // Step 2: verify the 6-digit code
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const token = code.replace(/\s/g, '')
+    if (token.length !== 6) return
+    setLoading(true)
+    setError(null)
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token,
+      type: 'email',
+    })
+    setLoading(false)
+    if (error) {
+      setError('Invalid or expired code. Try again.')
+    } else {
+      router.push('/')
+    }
   }
 
   const handleCopyLink = async () => {
@@ -88,7 +114,7 @@ export default function LoginPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // clipboard API not available — silent fail
+      // silent
     }
   }
 
@@ -117,8 +143,6 @@ export default function LoginPage() {
             Google sign-in doesn&apos;t work inside LinkedIn&apos;s browser.
             Tap below to open Drivn in Safari or Chrome.
           </p>
-
-          {/* Primary CTA */}
           <button
             onClick={openInExternalBrowser}
             className={cn(
@@ -130,8 +154,6 @@ export default function LoginPage() {
             <ExternalLinkIcon />
             Open in Browser
           </button>
-
-          {/* Copy link */}
           <button
             onClick={handleCopyLink}
             className={cn(
@@ -142,30 +164,57 @@ export default function LoginPage() {
           >
             {copied ? '✓ Link copied!' : 'Copy link to paste in browser'}
           </button>
-
-          {/* LinkedIn tip */}
           <p className="text-xs text-muted-foreground mb-5">
             In the LinkedIn app, tap <span className="font-medium text-foreground">⋯</span> in the top right, then <span className="font-medium text-foreground">Open in browser</span>.
           </p>
-
-          {/* Divider */}
           <div className="flex items-center gap-3 mb-4">
             <div className="flex-1 h-px bg-border" />
             <span className="text-[11px] text-muted-foreground">or sign in with email instead</span>
             <div className="flex-1 h-px bg-border" />
           </div>
-
-          {/* Email magic link — works in any browser/WebView */}
-          {sent ? (
-            <div className="py-3">
-              <div className="text-2xl mb-2">📬</div>
-              <p className="font-medium text-foreground text-sm">Check your email</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                We sent a magic link to <span className="text-foreground">{email}</span>
+          {/* Email OTP inside in-app browser */}
+          {step === 'code' ? (
+            <form onSubmit={handleVerifyCode} className="space-y-3">
+              <p className="text-[13px] text-muted-foreground text-left">
+                Enter the 6-digit code sent to <span className="text-foreground">{email}</span>
               </p>
-            </div>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                required
+                className={cn(
+                  'w-full px-4 py-3 rounded-xl text-sm text-center tracking-[0.4em] font-mono',
+                  'bg-background border border-border text-foreground',
+                  'placeholder:text-muted-foreground/50 placeholder:tracking-normal',
+                  'outline-none focus:border-primary/50 transition-colors'
+                )}
+              />
+              <button
+                type="submit"
+                disabled={loading || code.length !== 6}
+                className={cn(
+                  'w-full py-3 rounded-xl text-sm font-medium',
+                  'bg-primary text-primary-foreground',
+                  'transition-all hover:bg-primary/90 active:scale-[0.98]',
+                  'disabled:opacity-40'
+                )}
+              >
+                {loading ? 'Verifying…' : 'Sign in'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setStep('email'); setCode(''); setError(null) }}
+                className="w-full py-2 text-xs text-muted-foreground/60 hover:text-muted-foreground"
+              >
+                ← Use a different email
+              </button>
+              {error && <p className="text-xs text-destructive text-center">{error}</p>}
+            </form>
           ) : (
-            <form onSubmit={handleMagicLink} className="space-y-3">
+            <form onSubmit={handleSendCode} className="space-y-3">
               <input
                 type="email"
                 value={email}
@@ -206,7 +255,7 @@ export default function LoginPage() {
   // ── Normal login page ────────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-6">
-      {/* Logo / brand */}
+      {/* Logo */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -230,76 +279,132 @@ export default function LoginPage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.1 }}
-        className={cn(
-          'w-full max-w-sm rounded-2xl',
-          'bg-card border border-border p-6'
-        )}
+        className="w-full max-w-sm rounded-2xl bg-card border border-border p-6"
       >
-        {sent ? (
-          <div className="text-center py-4">
-            <div className="text-2xl mb-3">📬</div>
-            <p className="font-medium text-foreground">Check your email</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              We sent a magic link to <span className="text-foreground">{email}</span>
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Google */}
-            <button
-              onClick={handleGoogleLogin}
-              disabled={loading}
-              className={cn(
-                'w-full flex items-center justify-center gap-3 py-3 rounded-xl mb-4',
-                'bg-secondary border border-border text-foreground text-sm font-medium',
-                'transition-all hover:bg-secondary/80 active:scale-[0.98]',
-                'disabled:opacity-50'
-              )}
+        <AnimatePresence mode="wait">
+          {step === 'email' ? (
+            <motion.div
+              key="email-step"
+              initial={{ opacity: 0, x: -12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -12 }}
+              transition={{ duration: 0.2 }}
             >
-              <GoogleIcon />
-              Continue with Google
-            </button>
-
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-[11px] text-muted-foreground">or</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
-
-            {/* Email magic link */}
-            <form onSubmit={handleMagicLink} className="space-y-3">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                required
-                className={cn(
-                  'w-full px-4 py-3 rounded-xl text-sm',
-                  'bg-background border border-border text-foreground',
-                  'placeholder:text-muted-foreground/50',
-                  'outline-none focus:border-primary/50 transition-colors'
-                )}
-              />
+              {/* Google */}
               <button
-                type="submit"
-                disabled={loading || !email}
+                onClick={handleGoogleLogin}
+                disabled={loading}
                 className={cn(
-                  'w-full py-3 rounded-xl text-sm font-medium',
-                  'bg-primary text-primary-foreground',
-                  'transition-all hover:bg-primary/90 active:scale-[0.98]',
-                  'disabled:opacity-40'
+                  'w-full flex items-center justify-center gap-3 py-3 rounded-xl mb-4',
+                  'bg-secondary border border-border text-foreground text-sm font-medium',
+                  'transition-all hover:bg-secondary/80 active:scale-[0.98]',
+                  'disabled:opacity-50'
                 )}
               >
-                {loading ? 'Sending…' : 'Continue with email'}
+                <GoogleIcon />
+                Continue with Google
               </button>
-            </form>
 
-            {error && (
-              <p className="text-xs text-destructive mt-3 text-center">{error}</p>
-            )}
-          </>
-        )}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-[11px] text-muted-foreground">or</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+
+              {/* Email → sends OTP code */}
+              <form onSubmit={handleSendCode} className="space-y-3">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  required
+                  className={cn(
+                    'w-full px-4 py-3 rounded-xl text-sm',
+                    'bg-background border border-border text-foreground',
+                    'placeholder:text-muted-foreground/50',
+                    'outline-none focus:border-primary/50 transition-colors'
+                  )}
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !email}
+                  className={cn(
+                    'w-full py-3 rounded-xl text-sm font-medium',
+                    'bg-primary text-primary-foreground',
+                    'transition-all hover:bg-primary/90 active:scale-[0.98]',
+                    'disabled:opacity-40'
+                  )}
+                >
+                  {loading ? 'Sending…' : 'Continue with email'}
+                </button>
+              </form>
+
+              {error && (
+                <p className="text-xs text-destructive mt-3 text-center">{error}</p>
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="code-step"
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 12 }}
+              transition={{ duration: 0.2 }}
+            >
+              <div className="text-center mb-5">
+                <div className="text-3xl mb-2">📬</div>
+                <p className="font-medium text-foreground text-[15px]">Check your email</p>
+                <p className="text-[13px] text-muted-foreground mt-1">
+                  We sent a 6-digit code to
+                </p>
+                <p className="text-[13px] font-medium text-foreground mt-0.5">{email}</p>
+              </div>
+
+              <form onSubmit={handleVerifyCode} className="space-y-3">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  autoFocus
+                  required
+                  className={cn(
+                    'w-full px-4 py-3 rounded-xl text-sm text-center tracking-[0.5em] font-mono',
+                    'bg-background border border-border text-foreground',
+                    'placeholder:text-muted-foreground/50 placeholder:tracking-normal',
+                    'outline-none focus:border-primary/50 transition-colors'
+                  )}
+                />
+                <button
+                  type="submit"
+                  disabled={loading || code.length !== 6}
+                  className={cn(
+                    'w-full py-3 rounded-xl text-sm font-medium',
+                    'bg-primary text-primary-foreground',
+                    'transition-all hover:bg-primary/90 active:scale-[0.98]',
+                    'disabled:opacity-40'
+                  )}
+                >
+                  {loading ? 'Verifying…' : 'Sign in'}
+                </button>
+              </form>
+
+              {error && (
+                <p className="text-xs text-destructive mt-3 text-center">{error}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={() => { setStep('email'); setCode(''); setError(null) }}
+                className="w-full mt-3 py-2 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              >
+                ← Use a different email
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       <p className="text-xs text-muted-foreground/40 mt-8 text-center max-w-xs">
