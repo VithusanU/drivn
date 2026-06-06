@@ -153,7 +153,23 @@ export default function FocusModePage({ params }: FocusModePageProps) {
     await completeTask(task.id)
     await updateStreak()
     const updatedStreak = await fetchStreak().then(() => useUserStore.getState().streak)
-    setNewStreak(updatedStreak?.current_streak ?? 0)
+    const streakCount = updatedStreak?.current_streak ?? 0
+    setNewStreak(streakCount)
+
+    // Streak milestone activity for friends feed (fire-and-forget)
+    const STREAK_MILESTONES = [7, 14, 21, 30, 60, 90, 100]
+    if (STREAK_MILESTONES.includes(streakCount)) {
+      const sb = createClient()
+      sb.auth.getUser().then(({ data: { user } }) => {
+        if (!user) return
+        sb.from('friend_activities').insert({
+          user_id: user.id,
+          type: 'streak_milestone',
+          streak_count: streakCount,
+        }).then().catch(() => {})
+      }).catch(() => {})
+    }
+
     setCompleted(true)
     setCompleting(false)
   }

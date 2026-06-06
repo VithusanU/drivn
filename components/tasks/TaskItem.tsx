@@ -10,6 +10,7 @@ import { useUndoStore } from '@/stores/undoStore'
 import { isTaskBlocked } from '@/lib/engine/recommendation'
 import { formatDueDate, cn } from '@/lib/utils'
 import type { Task } from '@/types'
+import { TASK_CATEGORIES } from '@/types'
 
 interface TaskItemProps {
   task: Task
@@ -36,6 +37,9 @@ export default function TaskItem({ task, selectMode = false, selected = false, o
 
   const blocked = isTaskBlocked(task, tasks)
   const blockerTask = blocked ? tasks.find((t) => t.id === task.blocked_by) : null
+  const catEmoji = task.category && task.category !== 'other'
+    ? TASK_CATEGORIES.find((c) => c.value === task.category)?.emoji
+    : null
 
   const isDueDateOverdue =
     task.due_date && new Date(task.due_date) < new Date() && !isToday(new Date(task.due_date))
@@ -109,7 +113,10 @@ export default function TaskItem({ task, selectMode = false, selected = false, o
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className="text-[14px] text-foreground/80 truncate">{task.title}</p>
+        <div className="flex items-center gap-1 min-w-0">
+          {catEmoji && <span className="text-[12px] flex-shrink-0 opacity-70">{catEmoji}</span>}
+          <p className="text-[14px] text-foreground/80 truncate">{task.title}</p>
+        </div>
         {/* Notes preview */}
         {task.description && !blocked && (
           <p className="text-[11px] mt-0.5 text-muted-foreground/40 truncate">{task.description}</p>
