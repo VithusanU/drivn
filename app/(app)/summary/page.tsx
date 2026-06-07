@@ -84,6 +84,7 @@ export default function SummaryPage() {
   const [weeklyInsight, setWeeklyInsight] = useState<WeeklyInsight | null>(null)
   const [dailyInsight, setDailyInsight] = useState<DailyInsight | null>(null)
   const [recentSessions, setRecentSessions] = useState<FocusSession[]>([])
+  const [sessionPage, setSessionPage] = useState(1)
   const [allTimeStats, setAllTimeStats] = useState<AllTimeStats | null>(null)
   const [statsView, setStatsView] = useState<'today' | 'week'>('today')
 
@@ -118,10 +119,9 @@ export default function SummaryPage() {
       // All sessions this week — no limit so total is accurate
       supabase.from('focus_sessions').select('minutes_logged')
         .gte('started_at', `${weekStart}T00:00:00`),
-      // Recent 5 for the "Recent focus sessions" list
+      // All-time sessions for history list (last 50)
       supabase.from('focus_sessions').select('*')
-        .gte('started_at', `${weekStart}T00:00:00`)
-        .order('started_at', { ascending: false }).limit(5),
+        .order('started_at', { ascending: false }).limit(50),
       // Today's tasks
       supabase.from('tasks').select('id').eq('status', 'completed')
         .gte('completed_at', `${todayStr}T00:00:00`).lte('completed_at', `${todayStr}T23:59:59`),
@@ -167,6 +167,7 @@ export default function SummaryPage() {
       habitsToday: todayHabits?.length ?? 0,
     })
     setRecentSessions((recentFive ?? []) as FocusSession[])
+    setSessionPage(1)
 
     // All-time stats
     const totalFocusMinutes = (allTimeSessions ?? []).reduce((s: number, f: any) => s + (f.minutes_logged ?? 0), 0)
@@ -434,14 +435,14 @@ export default function SummaryPage() {
         </div>
       )}
 
-      {/* Recent focus sessions */}
+      {/* Focus session history */}
       {recentSessions.length > 0 && (
         <div>
           <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3">
-            Recent focus sessions
+            Focus history
           </p>
           <div className="space-y-2">
-            {recentSessions.slice(0, 5).map((session) => (
+            {recentSessions.slice(0, sessionPage * 10).map((session) => (
               <div
                 key={session.id}
                 className="flex items-center justify-between rounded-xl border border-border bg-card px-3.5 py-3"
@@ -451,7 +452,7 @@ export default function SummaryPage() {
                   <div className="min-w-0">
                     <p className="text-[13px] text-foreground truncate">{session.task_title}</p>
                     <p className="text-[11px] text-muted-foreground/50">
-                      {format(new Date(session.started_at), 'EEE, MMM d')}
+                      {format(new Date(session.started_at), 'EEE, MMM d · h:mm a')}
                     </p>
                   </div>
                 </div>
@@ -464,6 +465,14 @@ export default function SummaryPage() {
               </div>
             ))}
           </div>
+          {recentSessions.length > sessionPage * 10 && (
+            <button
+              onClick={() => setSessionPage((p) => p + 1)}
+              className="w-full mt-2 py-2.5 rounded-xl border border-border text-[12px] text-muted-foreground/60 hover:text-foreground hover:border-border/80 transition-colors"
+            >
+              Show more ({recentSessions.length - sessionPage * 10} remaining)
+            </button>
+          )}
         </div>
       )}
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { Circle, CheckCircle2, Trash2, Lock, Square, CheckSquare } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
@@ -35,6 +35,11 @@ export default function TaskItem({ task, selectMode = false, selected = false, o
   const showUndo = useUndoStore((s) => s.show)
   const router = useRouter()
 
+  const x = useMotionValue(0)
+  const SWIPE_THRESHOLD = 80
+  const completeOpacity = useTransform(x, [0, SWIPE_THRESHOLD], [0, 1])
+  const deleteOpacity = useTransform(x, [-SWIPE_THRESHOLD, 0], [1, 0])
+
   const blocked = isTaskBlocked(task, tasks)
   const blockerTask = blocked ? tasks.find((t) => t.id === task.blocked_by) : null
   const catEmoji = task.category && task.category !== 'other'
@@ -44,18 +49,38 @@ export default function TaskItem({ task, selectMode = false, selected = false, o
   const isDueDateOverdue =
     task.due_date && new Date(task.due_date) < new Date() && !isToday(new Date(task.due_date))
 
-  const handleComplete = async (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const doComplete = async () => {
     setCompleting(true)
     await completeTask(task.id)
     await updateStreak()
     setCompleting(false)
   }
 
-  const handleDelete = async (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const doDelete = async () => {
     await deleteTask(task.id)
     showUndo(`"${task.title}" deleted`, () => undoDeleteTask(task.id, task))
+  }
+
+  const handleComplete = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    doComplete()
+  }
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    doDelete()
+  }
+
+  const handleDragEnd = async (_: unknown, info: { offset: { x: number } }) => {
+    if (info.offset.x > SWIPE_THRESHOLD) {
+      await animate(x, 400, { duration: 0.15 })
+      doComplete()
+    } else if (info.offset.x < -SWIPE_THRESHOLD) {
+      await animate(x, -400, { duration: 0.15 })
+      doDelete()
+    } else {
+      animate(x, 0, { type: 'spring', stiffness: 500, damping: 40 } as any)
+    }
   }
 
   const handleClick = () => {
@@ -73,17 +98,44 @@ export default function TaskItem({ task, selectMode = false, selected = false, o
       animate={{ opacity: completing ? 0.4 : blocked ? 0.5 : 1, y: 0 }}
       exit={{ opacity: 0, x: -20 }}
       transition={{ duration: 0.15 }}
-      className={cn(
-        'flex items-center gap-3 px-3.5 py-3 rounded-xl',
-        'bg-card/50 border border-border/50',
-        'cursor-pointer group transition-colors',
-        selected && 'bg-primary/5 border-primary/30',
-        blocked
-          ? 'opacity-50 hover:opacity-70'
-          : 'hover:bg-card hover:border-border active:scale-[0.99]'
-      )}
-      onClick={handleClick}
+      className="relative overflow-hidden rounded-xl"
     >
+      {/* Swipe right → complete (green) */}
+      {!selectMode && !blocked && (
+        <motion.div
+          style={{ opacity: completeOpacity }}
+          className="absolute inset-0 bg-drivn-green/20 flex items-center pl-4 pointer-events-none"
+        >
+          <CheckCircle2 className="w-5 h-5 text-drivn-green" />
+        </motion.div>
+      )}
+      {/* Swipe left → delete (red) */}
+      {!selectMode && !blocked && (
+        <motion.div
+          style={{ opacity: deleteOpacity }}
+          className="absolute inset-0 bg-destructive/20 flex items-center justify-end pr-4 pointer-events-none"
+        >
+          <Trash2 className="w-5 h-5 text-destructive" />
+        </motion.div>
+      )}
+      {/* Draggable card */}
+      <motion.div
+        drag={!selectMode && !blocked ? 'x' : false}
+        style={{ x }}
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.15}
+        onDragEnd={handleDragEnd}
+        className={cn(
+          'flex items-center gap-3 px-3.5 py-3',
+          'bg-card/50 border border-border/50',
+          'cursor-pointer group transition-colors',
+          selected && 'bg-primary/5 border-primary/30',
+          blocked
+            ? 'opacity-50 hover:opacity-70'
+            : 'hover:bg-card hover:border-border active:scale-[0.99]'
+        )}
+        onClick={handleClick}
+      >
       {/* Checkbox (select mode) / Complete button / Lock */}
       {selectMode ? (
         <div className="flex-shrink-0 w-[18px] h-[18px] flex items-center justify-center">
@@ -156,6 +208,7 @@ export default function TaskItem({ task, selectMode = false, selected = false, o
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       )}
+      </motion.div>
     </motion.div>
   )
 }

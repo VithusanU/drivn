@@ -65,6 +65,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         estimated_minutes: input.estimated_minutes ?? null,
         blocked_by: input.blocked_by ?? null,
         recurrence: input.recurrence ?? 'none',
+        category: input.category ?? null,
       })
       .select()
       .single()
@@ -136,6 +137,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
           due_time: task.due_time,
           estimated_minutes: task.estimated_minutes,
           recurrence: task.recurrence as TaskRecurrence,
+          category: task.category ?? undefined,
         })
       }
     }

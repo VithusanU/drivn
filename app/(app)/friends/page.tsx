@@ -85,9 +85,23 @@ function FriendsPageInner() {
 
   useEffect(() => {
     loadAll()
-    // Refresh activity every 60s
-    pollingRef.current = setInterval(() => loadActivity(), 60_000)
-    return () => { if (pollingRef.current) clearInterval(pollingRef.current) }
+
+    // Real-time: re-fetch feed whenever a new activity is inserted
+    const supabase = createClient()
+    const channel = supabase
+      .channel('friend-activities-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friend_activities' }, () => {
+        loadActivity()
+      })
+      .subscribe()
+
+    // Fallback poll every 30s (covers Realtime gaps / initial connection)
+    pollingRef.current = setInterval(() => loadActivity(), 30_000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      if (pollingRef.current) clearInterval(pollingRef.current)
+    }
   }, [loadAll, loadActivity])
 
   const handleRefresh = async () => {

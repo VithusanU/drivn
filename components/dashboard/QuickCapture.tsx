@@ -9,7 +9,8 @@ import { parseVoiceInput, isSpeechRecognitionSupported } from '@/lib/voiceParser
 import TaskScanner, { type TaskScannerRef } from './TaskScanner'
 import TaskTemplates from './TaskTemplates'
 import AddEventSheet from '@/components/events/AddEventSheet'
-import type { TaskUrgency } from '@/types'
+import { TASK_CATEGORIES } from '@/types'
+import type { TaskUrgency, TaskCategory } from '@/types'
 
 const URGENCY_OPTIONS: { value: TaskUrgency; label: string }[] = [
   { value: 'high', label: 'High' },
@@ -82,6 +83,7 @@ export default function QuickCapture() {
   const [showAddEvent, setShowAddEvent] = useState(false)
 
   const [urgency, setUrgency] = useState<TaskUrgency>('medium')
+  const [category, setCategory] = useState<TaskCategory | null>(null)
   const [dueDate, setDueDate] = useState<string>('')
   const [dueTime, setDueTime] = useState<string>('')
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null)
@@ -103,6 +105,7 @@ export default function QuickCapture() {
 
   const resetOptions = () => {
     setUrgency('medium')
+    setCategory(null)
     setDueDate('')
     setDueTime('')
     setEstimatedMinutes(null)
@@ -117,6 +120,7 @@ export default function QuickCapture() {
     const result = await createTask({
       title: trimmed,
       urgency,
+      category,
       due_date: dueDate || null,
       due_time: dueTime || null,
       estimated_minutes: estimatedMinutes,
@@ -280,6 +284,30 @@ export default function QuickCapture() {
                       )}
                     >
                       {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Category */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground/60">
+                  Category
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {TASK_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.value}
+                      onClick={() => setCategory(category === cat.value ? null : cat.value)}
+                      className={cn(
+                        'flex items-center gap-1 px-3 py-1.5 rounded-full border text-[12px] font-medium transition-all',
+                        category === cat.value
+                          ? 'bg-primary/10 border-primary/40 text-primary'
+                          : 'border-border/50 text-muted-foreground/50 hover:border-primary/30 hover:text-primary/60'
+                      )}
+                    >
+                      <span>{cat.emoji}</span>
+                      {cat.label}
                     </button>
                   ))}
                 </div>

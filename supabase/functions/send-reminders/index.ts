@@ -53,18 +53,36 @@ Deno.serve(async () => {
     return new Response(JSON.stringify({ sent: 0, note: 'all already reminded today' }), { status: 200 })
   }
 
+  // Fetch each user's most urgent active task for personalised notifications
+  const eligibleUserIds = eligible.map((s: any) => s.user_id)
+  const { data: tasks } = await supabase
+    .from('tasks')
+    .select('user_id, title, urgency, due_date')
+    .in('user_id', eligibleUserIds)
+    .eq('status', 'active')
+    .order('due_date', { ascending: true, nullsFirst: false })
+
+  // Build user_id → top task title map (first result per user = soonest due)
+  const taskMap: Record<string, string> = {}
+  for (const t of (tasks ?? []) as any[]) {
+    if (!taskMap[t.user_id]) taskMap[t.user_id] = t.title
+  }
+
   const results = await Promise.allSettled(
-    eligible.map((sub: any) =>
-      webpush.sendNotification(
+    eligible.map((sub: any) => {
+      const taskTitle = taskMap[sub.user_id]
+      return webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
         JSON.stringify({
           title: '⚡ Time to get locked in',
-          body: "Your daily reminder — open Drivn and knock out today's tasks.",
+          body: taskTitle
+            ? `Start with: "${taskTitle}" — you've got this.`
+            : "Your daily reminder — open Drivn and knock out today's tasks.",
           icon: '/logo.png',
           url: '/',
         }),
       )
-    )
+    })
   )
 
   const sent = results.filter((r) => r.status === 'fulfilled').length
