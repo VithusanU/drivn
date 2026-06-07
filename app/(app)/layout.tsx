@@ -75,7 +75,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0">
+      <main className="flex-1 min-w-0 overflow-x-hidden">
         <div className="max-w-2xl mx-auto px-4 pb-24 md:pb-12 pt-0">
           <ErrorBoundary>
             {children}

@@ -426,7 +426,7 @@ export default function ProfilePage() {
           <div className="px-4 py-3.5">
             <div className="flex items-start gap-3">
               <Sparkles className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="text-sm text-foreground/80">AI mode</p>
                 <p className="text-[11px] text-muted-foreground/50 mt-0.5 mb-3">
                   Get AI-powered recommendations. Request free access or use your own key below.
@@ -455,7 +455,7 @@ export default function ProfilePage() {
         <div className="px-4 py-3.5">
           <div className="flex items-start gap-3">
             <Key className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <p className="text-sm text-foreground/80">Your API key</p>
               {hasOwnKey ? (
                 /* Key is saved — show masked + remove */
@@ -656,7 +656,7 @@ export default function ProfilePage() {
         <div className="px-4 py-3.5">
           <div className="flex items-start gap-3">
             <CalendarDays className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <p className="text-sm text-foreground/80">Sync to your calendar</p>
               <p className="text-[11px] text-muted-foreground/50 mt-0.5 mb-3">
                 Subscribe to a live feed — your events appear in iOS Calendar, Google Calendar, or Outlook and stay in sync automatically.
@@ -668,22 +668,28 @@ export default function ProfilePage() {
                     'flex items-center gap-2 px-3 py-2 rounded-xl border border-border/50',
                     'bg-secondary/50'
                   )}>
-                    <p className="text-[11px] font-mono text-muted-foreground/70 flex-1 truncate">{calUrl}</p>
+                    <p className="text-[11px] font-mono text-muted-foreground/70 flex-1 min-w-0 truncate">{calUrl}</p>
                     <button
                       onClick={async () => {
                         await navigator.clipboard.writeText(calUrl)
                         setCalCopied(true)
                         setTimeout(() => setCalCopied(false), 2000)
                       }}
-                      className="flex-shrink-0 flex items-center gap-1 text-[11px] text-primary/70 hover:text-primary transition-colors"
+                      className="flex-shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/10 text-[11px] text-primary/80 hover:text-primary transition-colors"
                     >
                       {calCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                      {calCopied ? 'Copied' : 'Copy'}
+                      {calCopied ? 'Copied!' : 'Copy'}
                     </button>
                   </div>
-                  <div className="space-y-1 text-[11px] text-muted-foreground/50">
-                    <p>📱 <strong>iPhone:</strong> Calendar app → Accounts → Add Account → Other → Add Subscribed Calendar → paste URL</p>
-                    <p>🗓 <strong>Google:</strong> calendar.google.com → Other calendars → From URL → paste URL</p>
+                  <div className="space-y-2 text-[11px] text-muted-foreground/50">
+                    <div className="flex gap-2">
+                      <span className="flex-shrink-0">📱</span>
+                      <p className="break-words"><strong>iPhone:</strong> Calendar app → Accounts → Add Account → Other → Add Subscribed Calendar → paste URL</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="flex-shrink-0">🗓</span>
+                      <p className="break-words"><strong>Google:</strong> calendar.google.com → Other calendars → From URL → paste URL</p>
+                    </div>
                   </div>
                 </div>
               ) : (
