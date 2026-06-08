@@ -1,11 +1,30 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import webpush from 'npm:web-push'
 
-const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY')!
-const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY')!
-const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT')!
+// `web-push` is loaded dynamically inside the request handler (not as a static
+// top-level import). A static `import webpush from 'npm:web-push'` runs at
+// module-evaluation time — if it throws (registry hiccup, VAPID env var
+// missing, etc.) the whole worker fails to boot with an opaque WORKER_ERROR
+// 500 that never reaches any try/catch in the handler. Loading it lazily lets
+// us catch and report the real error instead.
+let webpush: any = null
+let webpushInitError: string | null = null
 
-webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+async function ensureWebpush() {
+  if (webpush || webpushInitError) return
+  try {
+    const mod = await import('npm:web-push')
+    webpush = mod.default ?? mod
+    const pub = Deno.env.get('VAPID_PUBLIC_KEY')
+    const priv = Deno.env.get('VAPID_PRIVATE_KEY')
+    const subj = Deno.env.get('VAPID_SUBJECT')
+    if (!pub || !priv || !subj) {
+      throw new Error(`Missing VAPID env vars (public=${!!pub} private=${!!priv} subject=${!!subj})`)
+    }
+    webpush.setVapidDetails(subj, pub, priv)
+  } catch (err) {
+    webpushInitError = String(err)
+  }
+}
 
 // Returns "HH:MM" UTC for `date` offset by `deltaMinutes`
 function utcHHMM(base: Date, deltaMinutes = 0): string {
@@ -22,6 +41,26 @@ async function pushTo(sub: { endpoint: string; p256dh: string; auth: string }, p
 }
 
 Deno.serve(async () => {
+  try {
+    await ensureWebpush()
+    if (webpushInitError) {
+      return new Response(JSON.stringify({ error: 'webpush init failed', detail: webpushInitError }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    return await handle()
+  } catch (err) {
+    // Surface the real error in the response so we can diagnose the
+    // WORKER_ERROR 500s without needing dashboard log access.
+    return new Response(
+      JSON.stringify({ error: String(err), stack: (err as Error)?.stack ?? null }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+})
+
+async function handle(): Promise<Response> {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -59,6 +98,10 @@ Deno.serve(async () => {
   )
 
   let alarmsSent = 0
+  // Per-subscription send outcomes for the alarms we attempted this run — included
+  // in the response so delivery failures (stale subscription, VAPID mismatch, etc.)
+  // are visible without dashboard log access. `undefined` when no alarms were due.
+  let alarmDebug: Array<{ taskId: string; userId: string; hasSub: boolean; status: string; reason?: string; statusCode?: number }> | undefined
   if (dueAlarms.length) {
     const alarmUserIds = [...new Set(dueAlarms.map((t: any) => t.user_id))]
     const { data: alarmSubs } = await supabase
@@ -85,6 +128,17 @@ Deno.serve(async () => {
 
     alarmsSent = alarmResults.filter((r) => r.status === 'fulfilled').length
 
+    alarmDebug = alarmResults.map((r, i) => ({
+      taskId: dueAlarms[i].id,
+      userId: dueAlarms[i].user_id,
+      hasSub: !!subByUser[dueAlarms[i].user_id],
+      status: r.status,
+      reason: r.status === 'rejected'
+        ? (r.reason?.body || r.reason?.message || String(r.reason))
+        : undefined,
+      statusCode: r.status === 'rejected' ? r.reason?.statusCode : undefined,
+    }))
+
     await supabase
       .from('tasks')
       .update({ last_alarm_at: now.toISOString() })
@@ -107,14 +161,14 @@ Deno.serve(async () => {
   const { data: subs, error } = await query
 
   if (error || !subs?.length) {
-    return new Response(JSON.stringify({ sent: 0, alarmsSent, window: `${windowStart}–${windowEnd}` }), { status: 200 })
+    return new Response(JSON.stringify({ sent: 0, alarmsSent, alarmDebug, window: `${windowStart}–${windowEnd}` }), { status: 200 })
   }
 
   // Dedup: skip users already reminded today
   const eligible = subs.filter((s: any) => s.last_reminded_at?.slice(0, 10) !== today)
 
   if (!eligible.length) {
-    return new Response(JSON.stringify({ sent: 0, alarmsSent, note: 'all already reminded today' }), { status: 200 })
+    return new Response(JSON.stringify({ sent: 0, alarmsSent, alarmDebug, note: 'all already reminded today' }), { status: 200 })
   }
 
   // Fetch each user's most urgent active task for personalised notifications
@@ -155,5 +209,5 @@ Deno.serve(async () => {
     .update({ last_reminded_at: now.toISOString() })
     .in('user_id', userIds)
 
-  return new Response(JSON.stringify({ sent, alarmsSent, window: `${windowStart}–${windowEnd}` }), { status: 200 })
-})
+  return new Response(JSON.stringify({ sent, alarmsSent, alarmDebug, window: `${windowStart}–${windowEnd}` }), { status: 200 })
+}
