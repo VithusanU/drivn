@@ -110,41 +110,58 @@ async function handle(): Promise<Response> {
       .in('user_id', alarmUserIds)
       .not('endpoint', 'is', null)
 
-    const subByUser: Record<string, any> = {}
-    for (const s of (alarmSubs ?? []) as any[]) subByUser[s.user_id] = s
+    // A user can now have multiple devices subscribed simultaneously
+    // (migration 020_multi_device_push) — fan each alarm out to every
+    // device they're subscribed on, not just one.
+    const subsByUser: Record<string, any[]> = {}
+    for (const s of (alarmSubs ?? []) as any[]) {
+      (subsByUser[s.user_id] ??= []).push(s)
+    }
+
+    const sendList: Array<{ task: any; sub: any }> = []
+    for (const t of dueAlarms as any[]) {
+      for (const sub of subsByUser[t.user_id] ?? []) sendList.push({ task: t, sub })
+    }
 
     const alarmResults = await Promise.allSettled(
-      dueAlarms.map((t: any) => {
-        const sub = subByUser[t.user_id]
-        if (!sub) return Promise.reject(new Error('no subscription'))
-        return pushTo(sub, {
-          title: `⏰ ${t.title}`,
+      sendList.map(({ task, sub }) =>
+        pushTo(sub, {
+          title: `⏰ ${task.title}`,
           body: "It's time — let's go.",
           icon: '/logo.png',
           url: '/',
         })
-      })
+      )
     )
 
     alarmsSent = alarmResults.filter((r) => r.status === 'fulfilled').length
 
-    alarmDebug = alarmResults.map((r, i) => ({
-      taskId: dueAlarms[i].id,
-      userId: dueAlarms[i].user_id,
-      hasSub: !!subByUser[dueAlarms[i].user_id],
-      status: r.status,
-      // For 'fulfilled' results, `value` is the raw response object FROM THE PUSH
-      // SERVICE (FCM/APNs/etc) — its statusCode tells us whether the message was
-      // truly queued (201) vs merely accepted-then-dropped. For 'rejected', surface
-      // whatever the push library attached to the error.
-      reason: r.status === 'rejected'
-        ? (r.reason?.body || r.reason?.message || String(r.reason))
-        : (r.value?.body || undefined),
-      statusCode: r.status === 'rejected' ? r.reason?.statusCode : r.value?.statusCode,
-      endpoint: subByUser[dueAlarms[i].user_id]?.endpoint
-        ? String(subByUser[dueAlarms[i].user_id].endpoint).slice(0, 60)
-        : undefined,
-    }))
+    alarmDebug = alarmResults.map((r, i) => {
+      const { task, sub } = sendList[i]
+      return {
+        taskId: task.id,
+        userId: task.user_id,
+        hasSub: true,
+        status: r.status,
+        // For 'fulfilled' results, `value` is the raw response object FROM THE PUSH
+        // SERVICE (FCM/APNs/etc) — its statusCode tells us whether the message was
+        // truly queued (201) vs merely accepted-then-dropped. For 'rejected', surface
+        // whatever the push library attached to the error.
+        reason: r.status === 'rejected'
+          ? (r.reason?.body || r.reason?.message || String(r.reason))
+          : (r.value?.body || undefined),
+        statusCode: r.status === 'rejected' ? r.reason?.statusCode : r.value?.statusCode,
+        endpoint: String(sub.endpoint).slice(0, 60),
+      }
+    })
+
+    // Tasks whose owner has zero subscriptions still need to surface in the
+    // debug output — otherwise "why didn't my alarm fire" is invisible.
+    for (const t of dueAlarms as any[]) {
+      if (!(subsByUser[t.user_id]?.length)) {
+        alarmDebug.push({ taskId: t.id, userId: t.user_id, hasSub: false, status: 'rejected', reason: 'no subscription' })
+      }
+    }
 
     await supabase
       .from('tasks')
@@ -152,34 +169,45 @@ async function handle(): Promise<Response> {
       .in('id', dueAlarms.map((t: any) => t.id))
   }
 
-  // ── Part 2: daily reminder (single time set in Profile) ─────────────────────
-  let query = supabase
-    .from('push_subscriptions')
-    .select('user_id, endpoint, p256dh, auth, last_reminded_at')
+  // ── Part 2: daily reminder (single time set in Profile, USER-level) ─────────
+  // reminder_time / last_reminded_at now live on user_profiles (migration
+  // 020_multi_device_push) — they're a per-user preference, not per-device,
+  // since a user with N subscribed devices should still get exactly one
+  // reminder per day, fanned out to all of their devices.
+  let profileQuery = supabase
+    .from('user_profiles')
+    .select('id, reminder_time, last_reminded_at')
     .not('reminder_time', 'is', null)
-    .not('endpoint', 'is', null)
 
   if (crossesMidnight) {
-    query = query.or(`reminder_time.gte.${windowStart},reminder_time.lte.${windowEnd}`)
+    profileQuery = profileQuery.or(`reminder_time.gte.${windowStart},reminder_time.lte.${windowEnd}`)
   } else {
-    query = query.gte('reminder_time', windowStart).lte('reminder_time', windowEnd)
+    profileQuery = profileQuery.gte('reminder_time', windowStart).lte('reminder_time', windowEnd)
   }
 
-  const { data: subs, error } = await query
+  const { data: profiles, error } = await profileQuery
 
-  if (error || !subs?.length) {
+  if (error || !profiles?.length) {
     return new Response(JSON.stringify({ sent: 0, alarmsSent, alarmDebug, window: `${windowStart}–${windowEnd}` }), { status: 200 })
   }
 
   // Dedup: skip users already reminded today
-  const eligible = subs.filter((s: any) => s.last_reminded_at?.slice(0, 10) !== today)
+  const eligibleProfiles = profiles.filter((p: any) => p.last_reminded_at?.slice(0, 10) !== today)
 
-  if (!eligible.length) {
+  if (!eligibleProfiles.length) {
     return new Response(JSON.stringify({ sent: 0, alarmsSent, alarmDebug, note: 'all already reminded today' }), { status: 200 })
   }
 
+  const eligibleUserIds = eligibleProfiles.map((p: any) => p.id)
+
+  // Fan out to every device each eligible user is subscribed on.
+  const { data: reminderSubs } = await supabase
+    .from('push_subscriptions')
+    .select('user_id, endpoint, p256dh, auth')
+    .in('user_id', eligibleUserIds)
+    .not('endpoint', 'is', null)
+
   // Fetch each user's most urgent active task for personalised notifications
-  const eligibleUserIds = eligible.map((s: any) => s.user_id)
   const { data: tasks } = await supabase
     .from('tasks')
     .select('user_id, title, urgency, due_date')
@@ -194,7 +222,7 @@ async function handle(): Promise<Response> {
   }
 
   const results = await Promise.allSettled(
-    eligible.map((sub: any) => {
+    (reminderSubs ?? []).map((sub: any) => {
       const taskTitle = taskMap[sub.user_id]
       return pushTo(sub, {
         title: '⚡ Time to get locked in',
@@ -209,12 +237,12 @@ async function handle(): Promise<Response> {
 
   const sent = results.filter((r) => r.status === 'fulfilled').length
 
-  // Mark reminded
-  const userIds = eligible.map((s: any) => s.user_id)
+  // Mark reminded — at the USER level (user_profiles.id), not per-device,
+  // so a user isn't re-reminded just because they have multiple subscriptions.
   await supabase
-    .from('push_subscriptions')
+    .from('user_profiles')
     .update({ last_reminded_at: now.toISOString() })
-    .in('user_id', userIds)
+    .in('id', eligibleUserIds)
 
   return new Response(JSON.stringify({ sent, alarmsSent, alarmDebug, window: `${windowStart}–${windowEnd}` }), { status: 200 })
 }

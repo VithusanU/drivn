@@ -64,9 +64,13 @@ export async function subscribeToPush(): Promise<boolean> {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return false
 
+    // Keyed on (user_id, endpoint) — NOT user_id alone — so each device/browser
+    // gets its own row and subscribing on a new device doesn't evict another
+    // device's subscription. Re-subscribing the same device updates its row
+    // (the endpoint stays stable across re-subscribes on a given browser).
     await supabase.from('push_subscriptions').upsert(
       { user_id: user.id, endpoint, p256dh: keys.p256dh, auth: keys.auth },
-      { onConflict: 'user_id' }
+      { onConflict: 'user_id,endpoint' }
     )
 
     return true
@@ -80,10 +84,17 @@ export async function unsubscribeFromPush(): Promise<void> {
   // Browser-side unsubscribe and the DB row cleanup are independent — a failure
   // in one (e.g. iOS Safari throwing from `sub.unsubscribe()`) must not prevent
   // the other, otherwise toggling off leaves a stale row that blocks resubscribe.
+  //
+  // Capture THIS device's endpoint before unsubscribing, so we delete only its
+  // row — not every device this user has subscribed from.
+  let endpoint: string | null = null
   try {
     const reg = await navigator.serviceWorker?.getRegistration('/sw.js')
     const sub = await reg?.pushManager.getSubscription()
-    if (sub) await sub.unsubscribe()
+    if (sub) {
+      endpoint = sub.endpoint
+      await sub.unsubscribe()
+    }
   } catch (err) {
     console.error('[push] browser-side unsubscribe failed', err)
   }
@@ -92,7 +103,9 @@ export async function unsubscribeFromPush(): Promise<void> {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      await supabase.from('push_subscriptions').delete().eq('user_id', user.id)
+      let query = supabase.from('push_subscriptions').delete().eq('user_id', user.id)
+      if (endpoint) query = query.eq('endpoint', endpoint)
+      await query
     }
   } catch (err) {
     console.error('[push] failed to delete subscription row', err)
@@ -123,14 +136,18 @@ function utcToLocal(utcHHMM: string): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+// Daily reminder time is a USER preference (lives on user_profiles), not a
+// per-device one — otherwise a user with multiple subscribed devices could end
+// up with conflicting times, or one reminder per device per day. See migration
+// 020_multi_device_push.sql.
 export async function saveReminderTime(time: string): Promise<void> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
   await supabase
-    .from('push_subscriptions')
+    .from('user_profiles')
     .update({ reminder_time: localToUTC(time) })
-    .eq('user_id', user.id)
+    .eq('id', user.id)
 }
 
 export async function getReminderTime(): Promise<string | null> {
@@ -138,9 +155,9 @@ export async function getReminderTime(): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
   const { data } = await supabase
-    .from('push_subscriptions')
+    .from('user_profiles')
     .select('reminder_time')
-    .eq('user_id', user.id)
+    .eq('id', user.id)
     .single()
   if (!data?.reminder_time) return null
   return utcToLocal(data.reminder_time)
