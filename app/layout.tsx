@@ -21,6 +21,13 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  // Lets the page draw under the iOS notch/home-indicator and Android gesture
+  // bar (instead of leaving a hard system-bar gap). This is the PREREQUISITE
+  // for env(safe-area-inset-*) to resolve to non-zero values — without it,
+  // `.pb-safe` / `.pt-safe` (app/globals.css) always compute to 0 and
+  // fixed-bottom UI (sheet footers, bottom nav) can sit under the home
+  // indicator on notched phones.
+  viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#f5f5f8' },
     { media: '(prefers-color-scheme: dark)', color: '#0a0a0f' },

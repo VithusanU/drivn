@@ -99,7 +99,7 @@ export default function AddFriendSheet({ open, onClose, onRequestSent }: Props) 
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] flex flex-col bg-card rounded-t-3xl border-t border-border shadow-[0_-8px_40px_rgba(0,0,0,0.3)]"
+            className="fixed bottom-0 left-0 right-0 z-50 max-h-[85dvh] flex flex-col bg-card rounded-t-3xl border-t border-border shadow-[0_-8px_40px_rgba(0,0,0,0.3)]"
           >
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-1 flex-shrink-0">

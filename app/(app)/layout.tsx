@@ -76,7 +76,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main className="flex-1 min-w-0 overflow-x-hidden">
-        <div className="max-w-2xl mx-auto px-4 pb-24 md:pb-12 pt-0">
+        {/* Bottom padding must clear the fixed mobile BottomNav (60px tall,
+            plus env(safe-area-inset-bottom) on notched phones — see
+            BottomNav.tsx's `min-h-[60px] pb-safe`). Using calc() here keeps
+            the visual gap below the nav constant across devices instead of
+            risking content getting tucked behind a taller-than-expected bar
+            on iPhones with a home indicator. */}
+        <div className="max-w-2xl mx-auto px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-12 pt-0">
           <ErrorBoundary>
             {children}
           </ErrorBoundary>

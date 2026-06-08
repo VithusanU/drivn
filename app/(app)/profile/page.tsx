@@ -789,7 +789,11 @@ export default function ProfilePage() {
                 'fixed bottom-0 left-0 right-0 z-50',
                 'bg-card rounded-t-3xl border-t border-border',
                 'shadow-[0_-8px_40px_rgba(0,0,0,0.3)]',
-                'px-5 pb-8 pt-4'
+                // Base 2rem bottom padding (unchanged) plus the home-indicator
+                // safe-area inset on top, so the Sign-in/Cancel buttons clear
+                // the gesture bar on notched iPhones without losing the
+                // breathing room this sheet already had on other devices.
+                'px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-4'
               )}
             >
               {/* Handle */}

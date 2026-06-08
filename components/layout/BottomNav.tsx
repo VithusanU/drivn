@@ -47,7 +47,12 @@ export default function BottomNav() {
       'md:hidden fixed bottom-0 left-0 right-0',
       'bg-background/95 backdrop-blur-sm border-t border-border',
       'flex items-center justify-around pb-safe z-30',
-      'h-[60px]'
+      // `min-h` (not `h`) — `.pb-safe` adds env(safe-area-inset-bottom) as
+      // padding-bottom. With a fixed `h-[60px]` that padding would eat into
+      // the content box (border-box sizing) and squish the nav icons/labels
+      // on notched phones. `min-h` lets the bar grow taller to fit icons +
+      // safe-area inset without compressing anything.
+      'min-h-[60px]'
     )}>
       {navItems.map(({ href, label, icon: Icon }) => {
         const isActive = pathname === href

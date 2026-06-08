@@ -117,7 +117,7 @@ export default function AddEventSheet({ open, onClose, editingEvent }: Props) {
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             className={cn(
               'fixed bottom-0 left-0 right-0 z-50',
-              'max-h-[90vh] flex flex-col',
+              'max-h-[90dvh] flex flex-col',
               'bg-card rounded-t-3xl border-t border-border',
               'shadow-[0_-8px_40px_rgba(0,0,0,0.3)]'
             )}
@@ -301,7 +301,7 @@ export default function AddEventSheet({ open, onClose, editingEvent }: Props) {
             </div>
 
             {/* Footer */}
-            <div className="px-5 py-4 flex-shrink-0 border-t border-border/50 space-y-2">
+            <div className="px-5 pt-4 pb-safe flex-shrink-0 border-t border-border/50 space-y-2">
               {saveError && (
                 <p className="text-[12px] text-destructive/70 text-center">
                   Failed to save — make sure the database migration has been run.

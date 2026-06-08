@@ -136,7 +136,7 @@ export default function TaskTemplates({ open, onClose }: Props) {
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             className={cn(
               'fixed bottom-0 left-0 right-0 z-50',
-              'max-h-[85vh] flex flex-col',
+              'max-h-[85dvh] flex flex-col',
               'bg-card rounded-t-3xl border-t border-border',
               'shadow-[0_-8px_40px_rgba(0,0,0,0.3)]'
             )}
@@ -221,7 +221,7 @@ export default function TaskTemplates({ open, onClose }: Props) {
 
             {/* Footer — only shown when a template is selected */}
             {selected && (
-              <div className="px-4 py-4 flex-shrink-0 border-t border-border/50">
+              <div className="px-4 pt-4 pb-safe flex-shrink-0 border-t border-border/50">
                 <button
                   onClick={handleAdd}
                   disabled={adding || done}

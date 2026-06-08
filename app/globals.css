@@ -91,4 +91,18 @@
   .touch-target {
     min-height: 44px;
   }
+
+  /* Adds the iOS home-indicator / Android gesture-bar inset as bottom padding,
+     so fixed-bottom UI (sheet footers, bottom nav, primary CTAs) never sits
+     under — or gets obscured by — the system gesture area on notched/no-button
+     phones. Requires `viewport-fit=cover` in the viewport meta (see
+     app/layout.tsx) — without it, env(safe-area-inset-*) always resolves to 0.
+     `max()` keeps a sensible minimum gap on devices that report 0 (e.g. older
+     iPhones, most Android browsers, desktop). */
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
 }

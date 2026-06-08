@@ -148,16 +148,31 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
             onClick={onClose}
           />
 
-          {/* Sheet */}
+          {/* Sheet
+              IMPORTANT: bounded by `max-h-[90dvh] flex flex-col` with a scrollable
+              middle section and a `flex-shrink-0` footer — NOT a flat `p-5 space-y-5`
+              column. A long form (title, notes, urgency, dates, alarm, estimate,
+              category, recurrence, dependencies…) can easily exceed the visible
+              viewport on small phones; without this scaffolding the bottom of the
+              sheet — including the primary "Save changes" button — renders below
+              the fold and becomes unreachable. `dvh` (dynamic viewport height,
+              not `vh`) accounts for mobile browser chrome (address bar) so the
+              sheet's max-height matches what's ACTUALLY visible, not the largest
+              possible viewport. Mirrors AddEventSheet.tsx's working pattern. */}
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl bg-card border-t border-border p-5 space-y-5"
+            className={cn(
+              'fixed bottom-0 left-0 right-0 z-50',
+              'max-h-[90dvh] flex flex-col',
+              'bg-card rounded-t-2xl border-t border-border',
+              'shadow-[0_-8px_40px_rgba(0,0,0,0.3)]'
+            )}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between">
+            {/* Header — pinned, never scrolls */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-2 flex-shrink-0">
               <p className="text-[10px] font-medium tracking-[0.15em] uppercase text-muted-foreground/60">
                 Edit task
               </p>
@@ -165,6 +180,9 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Scrollable form body — everything between header and footer */}
+            <div className="flex-1 overflow-y-auto px-5 py-3 space-y-5">
 
             {/* Title */}
             <input
@@ -441,20 +459,27 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
               </div>
             )}
 
-            {/* Save */}
-            <button
-              onClick={handleSave}
-              disabled={saving || !title.trim()}
-              className={cn(
-                'w-full flex items-center justify-center gap-2 py-3.5 rounded-xl',
-                'bg-primary text-primary-foreground text-[15px] font-medium',
-                'transition-all active:scale-[0.98] hover:bg-primary/90',
-                'disabled:opacity-50'
-              )}
-            >
-              <Check className="w-4 h-4" />
-              {saving ? 'Saving…' : 'Save changes'}
-            </button>
+            </div>
+            {/* end scrollable form body */}
+
+            {/* Footer — pinned, always visible regardless of form length.
+                `pb-safe` adds env(safe-area-inset-bottom) padding so the button
+                isn't covered by the home-indicator gesture bar on notched iPhones. */}
+            <div className="px-5 pt-4 pb-safe flex-shrink-0 border-t border-border/50">
+              <button
+                onClick={handleSave}
+                disabled={saving || !title.trim()}
+                className={cn(
+                  'w-full flex items-center justify-center gap-2 py-3.5 rounded-xl',
+                  'bg-primary text-primary-foreground text-[15px] font-medium',
+                  'transition-all active:scale-[0.98] hover:bg-primary/90',
+                  'disabled:opacity-50'
+                )}
+              >
+                <Check className="w-4 h-4" />
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
           </motion.div>
         </>
       )}
