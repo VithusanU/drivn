@@ -137,10 +137,17 @@
   .home-grid {
     grid-template-columns: 65fr 35fr;
     column-gap: 2.5rem;
+    /* Right rail reads top-to-bottom as: what's coming up (Upcoming +
+       MiniCalendar) → where I stand (Stats) → keep going (Quote, Habits,
+       Momentum). TaskGroups — the actual "Now / Soon / Later" work surface —
+       spans 4 rows in the left spine so it stays visually dominant and the
+       grid stays a clean rectangle (7 cells per column). */
     grid-template-areas:
       'nudge      nudge'
       'nba        upcoming'
-      'quickwins  quote'
+      'quickwins  calendar'
+      'taskgroups stats'
+      'taskgroups quote'
       'taskgroups habits'
       'taskgroups momentum';
   }
@@ -149,6 +156,8 @@
 .home-grid__nudge { grid-area: nudge; }
 .home-grid__nba { grid-area: nba; }
 .home-grid__upcoming { grid-area: upcoming; }
+.home-grid__calendar { grid-area: calendar; }
+.home-grid__stats { grid-area: stats; }
 .home-grid__quickwins { grid-area: quickwins; }
 .home-grid__quote { grid-area: quote; }
 .home-grid__taskgroups { grid-area: taskgroups; }

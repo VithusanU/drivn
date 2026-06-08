@@ -15,6 +15,8 @@ import QuickCapture from '@/components/dashboard/QuickCapture'
 import QuickWins from '@/components/dashboard/QuickWins'
 import MotivationalQuote from '@/components/dashboard/MotivationalQuote'
 import UpcomingEvents from '@/components/dashboard/UpcomingEvents'
+import MiniCalendar from '@/components/dashboard/MiniCalendar'
+import StatsPanel from '@/components/dashboard/StatsPanel'
 
 const PROFILE_NUDGE_KEY = 'drivn_profile_nudge_dismissed'
 
@@ -75,6 +77,18 @@ export default function HomePage() {
         {/* Upcoming events this week — top of the right context rail on desktop */}
         <div className="home-grid__upcoming">
           <UpcomingEvents />
+        </div>
+
+        {/* Mini calendar + at-a-glance stats — desktop rail only. Mobile stays
+            exactly as it was (no extra scroll distance on the primary surface);
+            these exist purely to use the desktop rail's spare width with
+            content that's genuinely useful and pulls from data the page
+            already has in memory (zero new fetches). */}
+        <div className="hidden lg:block home-grid__calendar">
+          <MiniCalendar />
+        </div>
+        <div className="hidden lg:block home-grid__stats">
+          <StatsPanel />
         </div>
 
         {/* Quick wins strip */}
