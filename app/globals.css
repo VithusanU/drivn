@@ -137,16 +137,28 @@
   .home-grid {
     grid-template-columns: 65fr 35fr;
     column-gap: 2.5rem;
-    /* Right rail reads top-to-bottom as: what's coming up (Upcoming +
-       MiniCalendar) → where I stand (Stats) → keep going (Quote, Habits,
-       Momentum). TaskGroups — the actual "Now / Soon / Later" work surface —
-       spans 4 rows in the left spine so it stays visually dominant and the
-       grid stays a clean rectangle (7 cells per column). */
+    /* Row-pairings are chosen by HEIGHT COMPATIBILITY, not just topical fit —
+       a CSS grid row is as tall as its tallest cell, so pairing a
+       conditionally-empty/short widget against a consistently-tall one
+       creates a dead gap (this bit us once already: QuickWins renders `null`
+       whenever there are no quick-win-eligible tasks — see QuickWins.tsx —
+       and was originally paired against the ~300px MiniCalendar, leaving a
+       call-shaped hole whenever the strip was empty).
+         - quickwins ↔ stats: both compact, glanceable cards (~70-90px) —
+           heights track each other whether or not quickwins has content.
+         - taskgroups ↔ calendar/quote/habits/momentum: TaskGroups is the
+           dominant, naturally-tall "Now / Soon / Later" work surface, so it
+           comfortably absorbs the combined height of four shorter rail
+           widgets across its 4-row span instead of leaving them stranded
+           next to empty space.
+       If you're tempted to move MiniCalendar up next to UpcomingEvents for
+       topical grouping — don't, without first checking that whatever ends up
+       paired against it can't independently render short or empty. */
     grid-template-areas:
       'nudge      nudge'
       'nba        upcoming'
-      'quickwins  calendar'
-      'taskgroups stats'
+      'quickwins  stats'
+      'taskgroups calendar'
       'taskgroups quote'
       'taskgroups habits'
       'taskgroups momentum';
