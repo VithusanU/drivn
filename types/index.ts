@@ -43,7 +43,7 @@ export interface Task {
   recurrence: TaskRecurrence
   category: TaskCategory | null
   alarm_enabled: boolean
-  alarm_time_utc: string | null
+  alarm_at: string | null
   last_alarm_at: string | null
   created_at: string
   updated_at: string

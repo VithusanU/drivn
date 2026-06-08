@@ -4,7 +4,6 @@ import { create } from 'zustand'
 import { createClient } from '@/lib/supabase/client'
 import { getRecommendedTask, groupTasks, getQuickWins } from '@/lib/engine/recommendation'
 import { Analytics } from '@/lib/analytics'
-import { localToUTC } from '@/lib/notifications'
 import type { Task, TaskStore, CreateTaskInput, UpdateTaskInput, TaskGroup, RecommendedTask, TaskRecurrence } from '@/types'
 
 const TASK_LIMIT = 100
@@ -19,12 +18,22 @@ function nextDueDate(currentDate: string | null, recurrence: TaskRecurrence): st
   return d.toISOString().split('T')[0]
 }
 
-// due_time is stored/displayed in the user's local time, but the scheduler scans in UTC —
-// mirror the chosen local time into alarm_time_utc whenever an alarm is armed (same
-// localToUTC conversion used for the daily reminder_time on push_subscriptions).
-function deriveAlarmTimeUtc(alarmEnabled: boolean | undefined, dueTime: string | null | undefined): string | null {
-  if (!alarmEnabled || !dueTime) return null
-  return localToUTC(dueTime)
+// due_date/due_time are local calendar values ("2026-06-08" / "20:23"). To let the
+// scheduler do a single unambiguous comparison, collapse them into one absolute UTC
+// instant (alarm_at) right here — `new Date(y, m, d, h, mi)` interprets its arguments
+// in the *browser's* timezone (the user's), and toISOString() converts that to UTC.
+// This avoids splitting into a date-string + time-string, which is what caused the
+// previous off-by-a-day matching bug across timezones.
+function deriveAlarmAt(
+  alarmEnabled: boolean | undefined,
+  dueDate: string | null | undefined,
+  dueTime: string | null | undefined
+): string | null {
+  if (!alarmEnabled || !dueDate || !dueTime) return null
+  const [y, mo, d] = dueDate.split('-').map(Number)
+  const [h, mi] = dueTime.split(':').map(Number)
+  if (!y || !mo || !d || Number.isNaN(h) || Number.isNaN(mi)) return null
+  return new Date(y, mo - 1, d, h, mi, 0, 0).toISOString()
 }
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
@@ -76,7 +85,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         recurrence: input.recurrence ?? 'none',
         category: input.category ?? null,
         alarm_enabled: input.alarm_enabled ?? false,
-        alarm_time_utc: deriveAlarmTimeUtc(input.alarm_enabled, input.due_time),
+        alarm_at: deriveAlarmAt(input.alarm_enabled, input.due_date, input.due_time),
       })
       .select()
       .single()
@@ -91,12 +100,13 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   updateTask: async (id: string, input: UpdateTaskInput) => {
     const supabase = createClient()
 
-    // Only the full edit sheet sends `alarm_enabled` (always paired with `due_time`),
-    // so recompute the UTC mirror there. Quick-edit surfaces (e.g. TaskScanner) that
-    // patch `due_time` alone don't touch alarms — leave alarm_time_utc untouched.
+    // Only the full edit sheet sends `alarm_enabled` (always paired with `due_date`/
+    // `due_time`), so recompute the combined UTC instant there. Quick-edit surfaces
+    // (e.g. TaskScanner) that patch `due_time` alone don't touch alarms — leave
+    // alarm_at untouched so an armed alarm doesn't silently get cleared.
     const payload =
       'alarm_enabled' in input
-        ? { ...input, alarm_time_utc: deriveAlarmTimeUtc(input.alarm_enabled, input.due_time) }
+        ? { ...input, alarm_at: deriveAlarmAt(input.alarm_enabled, input.due_date, input.due_time) }
         : input
 
     const { data, error } = await supabase

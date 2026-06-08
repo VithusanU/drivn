@@ -277,31 +277,29 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
                   )}
                 />
 
-                {/* Alarm toggle — only meaningful once both a date and time are set */}
+                {/* Alarm toggle — only meaningful once both a date and time are set.
+                    Mirrors the On/Off row pattern used for Notifications in Profile. */}
                 {dueTime && (
                   <button
                     onClick={() => setAlarmEnabled((v) => !v)}
                     className={cn(
-                      'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-[12px] font-medium transition-all',
+                      'w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all',
                       alarmEnabled
-                        ? 'bg-primary/10 border-primary/40 text-primary'
-                        : 'border-border/50 text-muted-foreground/50 hover:border-primary/30 hover:text-primary/60'
+                        ? 'bg-primary/10 border-primary/40'
+                        : 'border-border/50 hover:border-primary/30'
                     )}
                   >
-                    {alarmEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
-                    <span className="flex-1 text-left">Alert me at this time</span>
-                    <span
-                      className={cn(
-                        'w-8 h-[18px] rounded-full relative transition-colors flex-shrink-0',
-                        alarmEnabled ? 'bg-primary/40' : 'bg-border'
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'absolute top-[2px] w-[14px] h-[14px] rounded-full bg-foreground transition-transform',
-                          alarmEnabled ? 'translate-x-[18px]' : 'translate-x-[2px]'
-                        )}
-                      />
+                    <div className="flex items-center gap-2.5">
+                      {alarmEnabled
+                        ? <Bell className="w-3.5 h-3.5 text-primary" />
+                        : <BellOff className="w-3.5 h-3.5 text-muted-foreground/50" />
+                      }
+                      <span className={cn('text-[12px] font-medium', alarmEnabled ? 'text-primary' : 'text-muted-foreground/60')}>
+                        Alert me at this time
+                      </span>
+                    </div>
+                    <span className={cn('text-[11px] font-medium', alarmEnabled ? 'text-primary' : 'text-muted-foreground/40')}>
+                      {alarmEnabled ? 'On' : 'Off'}
                     </span>
                   </button>
                 )}

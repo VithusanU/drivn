@@ -38,20 +38,21 @@ Deno.serve(async () => {
 
   // ── Part 1: per-task alarms ("Gym at 6pm", "Jog at 7am", etc.) ──────────────
   // These are independent of the user's daily reminder_time — a task with
-  // alarm_enabled fires its own push at its own due_date + due_time.
-  let alarmQuery = supabase
+  // alarm_enabled fires its own push at its own alarm_at instant.
+  // alarm_at is a single precomputed UTC timestamp (client combines the user's local
+  // due_date + due_time into one absolute instant), so this is a plain range check —
+  // no string/date-splitting, no timezone-skew edge cases.
+  const alarmWindowStart = new Date(now.getTime() - 7 * 60_000).toISOString()
+  const alarmWindowEnd   = new Date(now.getTime() + 7 * 60_000).toISOString()
+
+  const { data: alarmTasks } = await supabase
     .from('tasks')
-    .select('id, user_id, title, due_time, last_alarm_at')
+    .select('id, user_id, title, alarm_at, last_alarm_at')
     .eq('status', 'active')
     .eq('alarm_enabled', true)
-    .eq('due_date', today)
-    .not('due_time', 'is', null)
-
-  alarmQuery = crossesMidnight
-    ? alarmQuery.or(`due_time.gte.${windowStart},due_time.lte.${windowEnd}`)
-    : alarmQuery.gte('due_time', windowStart).lte('due_time', windowEnd)
-
-  const { data: alarmTasks } = await alarmQuery
+    .not('alarm_at', 'is', null)
+    .gte('alarm_at', alarmWindowStart)
+    .lte('alarm_at', alarmWindowEnd)
 
   const dueAlarms = (alarmTasks ?? []).filter(
     (t: any) => t.last_alarm_at?.slice(0, 10) !== today
