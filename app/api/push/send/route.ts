@@ -20,29 +20,42 @@ export async function POST(req: Request) {
 
   const { title, body } = (await req.json()) as { title: string; body: string }
 
-  // Fetch subscription for this user
-  const { data: sub } = await supabase
+  // A user can have multiple devices subscribed simultaneously (migration
+  // 020_multi_device_push) — send the test push to ALL of them, not just one.
+  const { data: subs } = await supabase
     .from('push_subscriptions')
     .select('endpoint, p256dh, auth')
     .eq('user_id', user.id)
-    .single()
 
-  if (!sub) return Response.json({ error: 'No subscription' }, { status: 404 })
+  if (!subs?.length) return Response.json({ error: 'No subscription' }, { status: 404 })
 
   const payload = JSON.stringify({ title, body, icon: '/logo.png', badge: '/logo.png' })
 
-  try {
-    await webpush.sendNotification(
-      { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-      payload
+  const results = await Promise.allSettled(
+    subs.map((sub) =>
+      webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        payload
+      )
     )
-    return Response.json({ ok: true })
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Push failed'
-    // If subscription expired, clean it up
-    if ((err as { statusCode?: number })?.statusCode === 410) {
-      await supabase.from('push_subscriptions').delete().eq('user_id', user.id)
-    }
-    return Response.json({ error: msg }, { status: 500 })
+  )
+
+  // Clean up only the SPECIFIC expired subscriptions (matched by endpoint) —
+  // never delete by user_id alone, which would also remove other devices'
+  // still-working subscriptions.
+  const expiredEndpoints = results
+    .map((r, i) => ({ r, endpoint: subs[i].endpoint }))
+    .filter(({ r }) => r.status === 'rejected' && (r.reason as { statusCode?: number })?.statusCode === 410)
+    .map(({ endpoint }) => endpoint)
+
+  if (expiredEndpoints.length) {
+    await supabase.from('push_subscriptions').delete().eq('user_id', user.id).in('endpoint', expiredEndpoints)
   }
+
+  const sent = results.filter((r) => r.status === 'fulfilled').length
+  if (sent > 0) return Response.json({ ok: true, sent, total: subs.length })
+
+  const firstError = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+  const msg = firstError?.reason instanceof Error ? firstError.reason.message : 'Push failed'
+  return Response.json({ error: msg }, { status: 500 })
 }

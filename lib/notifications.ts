@@ -99,13 +99,22 @@ export async function unsubscribeFromPush(): Promise<void> {
     console.error('[push] browser-side unsubscribe failed', err)
   }
 
+  // CRITICAL: only ever delete by (user_id, endpoint) together. A user can now
+  // have multiple devices subscribed simultaneously (migration 020) — if we
+  // can't identify THIS device's endpoint, falling back to `eq('user_id', ...)`
+  // alone would silently wipe out every OTHER device's subscription too,
+  // re-introducing the exact "last device wins" bug the migration fixed.
+  // A stale leftover row is far less harmful than nuking a working device.
+  if (!endpoint) {
+    console.warn('[push] no local subscription/endpoint found — skipping DB delete to avoid removing other devices\' subscriptions')
+    return
+  }
+
   try {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      let query = supabase.from('push_subscriptions').delete().eq('user_id', user.id)
-      if (endpoint) query = query.eq('endpoint', endpoint)
-      await query
+      await supabase.from('push_subscriptions').delete().eq('user_id', user.id).eq('endpoint', endpoint)
     }
   } catch (err) {
     console.error('[push] failed to delete subscription row', err)

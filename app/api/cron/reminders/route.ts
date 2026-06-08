@@ -20,6 +20,23 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // SUPERSEDED — do not remove this early return without rewiring the route.
+  //
+  // This route was Drivn's original daily-reminder cron, limited to once/day
+  // by Vercel's Hobby-plan cron schedule (see c599c4a "change cron schedule
+  // to daily — Hobby plan limitation"). It was replaced by the
+  // `send-reminders` Supabase Edge Function, scheduled every 10 minutes via
+  // pg_cron (migration 014_pg_cron_reminders.sql) — see vercel.json, which no
+  // longer lists this path.
+  //
+  // Migration 020_multi_device_push moved `reminder_time`/`last_reminded_at`
+  // off `push_subscriptions` onto `user_profiles`, so the query below now
+  // references DROPPED COLUMNS and would 500 on every invocation. Rather than
+  // rewrite dead code (and risk sending duplicate reminders alongside
+  // send-reminders), this route now no-ops. Delete it once you've confirmed
+  // nothing still calls it directly.
+  return NextResponse.json({ skipped: true, reason: 'superseded by send-reminders Edge Function (pg_cron, every 10 min)' })
+
   const admin = createAdminClient()
   const now = new Date()
   const today = now.toISOString().slice(0, 10) // "YYYY-MM-DD" UTC
