@@ -43,20 +43,24 @@ function formatTime(minutes: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
 
+// Local calendar date as "YYYY-MM-DD" — NOT toISOString() (that's UTC and rolls over
+// to the next day in the evening for anyone west of UTC, e.g. after 8pm EDT/4pm PDT,
+// silently storing "tomorrow" as "today"). Mirrors localDateStr() in TaskEditSheet.
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 const DATE_PRESETS = [
   {
     label: 'Today',
-    value: () => {
-      const d = new Date()
-      return d.toISOString().split('T')[0]
-    },
+    value: () => localDateStr(new Date()),
   },
   {
     label: 'Tomorrow',
     value: () => {
       const d = new Date()
       d.setDate(d.getDate() + 1)
-      return d.toISOString().split('T')[0]
+      return localDateStr(d)
     },
   },
   {
@@ -66,7 +70,7 @@ const DATE_PRESETS = [
       const day = d.getDay()
       const diff = 7 - (day === 0 ? 7 : day)
       d.setDate(d.getDate() + diff)
-      return d.toISOString().split('T')[0]
+      return localDateStr(d)
     },
   },
 ]
