@@ -101,7 +101,7 @@ async function handle(): Promise<Response> {
   // Per-subscription send outcomes for the alarms we attempted this run — included
   // in the response so delivery failures (stale subscription, VAPID mismatch, etc.)
   // are visible without dashboard log access. `undefined` when no alarms were due.
-  let alarmDebug: Array<{ taskId: string; userId: string; hasSub: boolean; status: string; reason?: string; statusCode?: number }> | undefined
+  let alarmDebug: Array<{ taskId: string; userId: string; hasSub: boolean; status: string; reason?: string; statusCode?: number; endpoint?: string }> | undefined
   if (dueAlarms.length) {
     const alarmUserIds = [...new Set(dueAlarms.map((t: any) => t.user_id))]
     const { data: alarmSubs } = await supabase
@@ -133,10 +133,17 @@ async function handle(): Promise<Response> {
       userId: dueAlarms[i].user_id,
       hasSub: !!subByUser[dueAlarms[i].user_id],
       status: r.status,
+      // For 'fulfilled' results, `value` is the raw response object FROM THE PUSH
+      // SERVICE (FCM/APNs/etc) — its statusCode tells us whether the message was
+      // truly queued (201) vs merely accepted-then-dropped. For 'rejected', surface
+      // whatever the push library attached to the error.
       reason: r.status === 'rejected'
         ? (r.reason?.body || r.reason?.message || String(r.reason))
+        : (r.value?.body || undefined),
+      statusCode: r.status === 'rejected' ? r.reason?.statusCode : r.value?.statusCode,
+      endpoint: subByUser[dueAlarms[i].user_id]?.endpoint
+        ? String(subByUser[dueAlarms[i].user_id].endpoint).slice(0, 60)
         : undefined,
-      statusCode: r.status === 'rejected' ? r.reason?.statusCode : undefined,
     }))
 
     await supabase

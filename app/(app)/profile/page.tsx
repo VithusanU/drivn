@@ -30,6 +30,8 @@ export default function ProfilePage() {
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [notifEnabled, setNotifEnabled] = useState(false)
+  const [notifError, setNotifError] = useState<string | null>(null)
+  const [notifBusy, setNotifBusy] = useState(false)
   const [reminderTime, setReminderTime] = useState('')
   const [showTimePicker, setShowTimePicker] = useState(false)
   const [savingTime, setSavingTime] = useState(false)
@@ -199,12 +201,31 @@ export default function ProfilePage() {
   }
 
   const handleToggleNotifications = async () => {
-    if (notifEnabled) {
-      await unsubscribeFromPush()
-      setNotifEnabled(false)
-    } else {
-      const ok = await subscribeToPush()
-      setNotifEnabled(ok)
+    if (notifBusy) return
+    setNotifBusy(true)
+    setNotifError(null)
+    try {
+      if (notifEnabled) {
+        await unsubscribeFromPush()
+        setNotifEnabled(false)
+      } else {
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'denied') {
+          setNotifError(
+            'Notifications are blocked for this browser/app. Enable them in your device/browser settings, then try again.'
+          )
+          setNotifEnabled(false)
+          return
+        }
+        const ok = await subscribeToPush()
+        setNotifEnabled(ok)
+        if (!ok) {
+          setNotifError(
+            "Couldn't turn on notifications. Make sure you opened Drivn from the home-screen icon (iPhone) and allowed the permission prompt, then try again."
+          )
+        }
+      }
+    } finally {
+      setNotifBusy(false)
     }
   }
 
@@ -275,7 +296,8 @@ export default function ProfilePage() {
         {/* Notifications toggle */}
         <button
           onClick={handleToggleNotifications}
-          className="w-full flex items-center justify-between px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors border-b border-border/50"
+          disabled={notifBusy}
+          className="w-full flex items-center justify-between px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors border-b border-border/50 disabled:opacity-60"
         >
           <div className="flex items-center gap-3">
             {notifEnabled
@@ -285,9 +307,14 @@ export default function ProfilePage() {
             <span>Notifications</span>
           </div>
           <span className={cn('text-xs', notifEnabled ? 'text-primary' : 'text-muted-foreground/50')}>
-            {notifEnabled ? 'On' : 'Off'}
+            {notifBusy ? '…' : notifEnabled ? 'On' : 'Off'}
           </span>
         </button>
+        {notifError && (
+          <p className="px-4 py-2.5 text-[12px] text-destructive/80 bg-destructive/5 border-b border-border/50">
+            {notifError}
+          </p>
+        )}
 
         {/* Daily reminder */}
         <div className="border-b border-border/50">

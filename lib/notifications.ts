@@ -38,6 +38,18 @@ export async function subscribeToPush(): Promise<boolean> {
   }
 
   try {
+    // Browsers (notably Safari/iOS) THROW from `subscribe()` if a subscription
+    // already exists with a different `applicationServerKey` (e.g. left over
+    // from a previous VAPID key rotation) — "InvalidStateError: ... key does
+    // not match". Always clear any existing subscription first so re-toggling
+    // notifications can recover from a stale/mismatched-key subscription.
+    try {
+      const existing = await reg.pushManager.getSubscription()
+      if (existing) await existing.unsubscribe()
+    } catch (err) {
+      console.error('[push] failed to clear stale subscription before resubscribe', err)
+    }
+
     const subscription = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(vapidKey),
@@ -58,20 +70,32 @@ export async function subscribeToPush(): Promise<boolean> {
     )
 
     return true
-  } catch {
+  } catch (err) {
+    console.error('[push] subscribe failed', err)
     return false
   }
 }
 
 export async function unsubscribeFromPush(): Promise<void> {
-  const reg = await navigator.serviceWorker?.getRegistration('/sw.js')
-  const sub = await reg?.pushManager.getSubscription()
-  if (sub) await sub.unsubscribe()
+  // Browser-side unsubscribe and the DB row cleanup are independent — a failure
+  // in one (e.g. iOS Safari throwing from `sub.unsubscribe()`) must not prevent
+  // the other, otherwise toggling off leaves a stale row that blocks resubscribe.
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration('/sw.js')
+    const sub = await reg?.pushManager.getSubscription()
+    if (sub) await sub.unsubscribe()
+  } catch (err) {
+    console.error('[push] browser-side unsubscribe failed', err)
+  }
 
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (user) {
-    await supabase.from('push_subscriptions').delete().eq('user_id', user.id)
+  try {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase.from('push_subscriptions').delete().eq('user_id', user.id)
+    }
+  } catch (err) {
+    console.error('[push] failed to delete subscription row', err)
   }
 }
 
