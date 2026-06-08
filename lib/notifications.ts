@@ -82,8 +82,9 @@ export async function isSubscribed(): Promise<boolean> {
   return !!sub
 }
 
-// Convert local HH:MM to UTC HH:MM for storage
-function localToUTC(localHHMM: string): string {
+// Convert local HH:MM to UTC HH:MM for storage — exported so other features
+// (e.g. per-task alarms) can mirror local times into UTC for scheduler matching.
+export function localToUTC(localHHMM: string): string {
   const [h, m] = localHHMM.split(':').map(Number)
   const d = new Date()
   d.setHours(h, m, 0, 0)

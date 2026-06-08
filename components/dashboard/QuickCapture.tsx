@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff, Link2, Camera, LayoutTemplate, CalendarPlus } from 'lucide-react'
+import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff, Link2, Camera, LayoutTemplate, CalendarPlus, Bell, BellOff } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { cn } from '@/lib/utils'
 import { parseVoiceInput, isSpeechRecognitionSupported } from '@/lib/voiceParser'
@@ -86,6 +86,7 @@ export default function QuickCapture() {
   const [category, setCategory] = useState<TaskCategory | null>(null)
   const [dueDate, setDueDate] = useState<string>('')
   const [dueTime, setDueTime] = useState<string>('')
+  const [alarmEnabled, setAlarmEnabled] = useState(false)
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null)
   const [blockedBy, setBlockedBy] = useState<string | null>(null)
 
@@ -108,6 +109,7 @@ export default function QuickCapture() {
     setCategory(null)
     setDueDate('')
     setDueTime('')
+    setAlarmEnabled(false)
     setEstimatedMinutes(null)
     setBlockedBy(null)
   }
@@ -123,6 +125,7 @@ export default function QuickCapture() {
       category,
       due_date: dueDate || null,
       due_time: dueTime || null,
+      alarm_enabled: dueDate && dueTime ? alarmEnabled : false,
       estimated_minutes: estimatedMinutes,
       blocked_by: blockedBy,
     })
@@ -383,6 +386,35 @@ export default function QuickCapture() {
                       '[color-scheme:dark]'
                     )}
                   />
+
+                  {/* Alarm toggle — only meaningful once both a date and time are set */}
+                  {dueTime && (
+                    <button
+                      onClick={() => setAlarmEnabled((v) => !v)}
+                      className={cn(
+                        'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-[12px] font-medium transition-all',
+                        alarmEnabled
+                          ? 'bg-primary/10 border-primary/40 text-primary'
+                          : 'border-border/50 text-muted-foreground/50 hover:border-primary/30 hover:text-primary/60'
+                      )}
+                    >
+                      {alarmEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+                      <span className="flex-1 text-left">Alert me at this time</span>
+                      <span
+                        className={cn(
+                          'w-8 h-[18px] rounded-full relative transition-colors flex-shrink-0',
+                          alarmEnabled ? 'bg-primary/40' : 'bg-border'
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'absolute top-[2px] w-[14px] h-[14px] rounded-full bg-foreground transition-transform',
+                            alarmEnabled ? 'translate-x-[18px]' : 'translate-x-[2px]'
+                          )}
+                        />
+                      </span>
+                    </button>
+                  )}
                 </div>
               )}
 

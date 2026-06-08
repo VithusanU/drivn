@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Check, Link2, Repeat } from 'lucide-react'
+import { X, Check, Link2, Repeat, Bell, BellOff } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { cn } from '@/lib/utils'
 import type { Task, TaskUrgency, TaskRecurrence, TaskCategory } from '@/types'
@@ -93,6 +93,7 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
   const [blockedBy, setBlockedBy] = useState<string | null>(task.blocked_by ?? null)
   const [recurrence, setRecurrence] = useState<TaskRecurrence>((task.recurrence as TaskRecurrence) ?? 'none')
   const [category, setCategory] = useState<TaskCategory>((task.category as TaskCategory) ?? 'other')
+  const [alarmEnabled, setAlarmEnabled] = useState<boolean>(task.alarm_enabled ?? false)
   const [saving, setSaving] = useState(false)
 
   // Re-sync state from the latest task data every time the sheet opens
@@ -107,6 +108,7 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
       setBlockedBy(task.blocked_by ?? null)
       setRecurrence((task.recurrence as TaskRecurrence) ?? 'none')
       setCategory((task.category as TaskCategory) ?? 'other')
+      setAlarmEnabled(task.alarm_enabled ?? false)
     }
   }, [open])
 
@@ -127,6 +129,7 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
       blocked_by: blockedBy,
       recurrence,
       category,
+      alarm_enabled: dueDate && dueTime ? alarmEnabled : false,
     })
     setSaving(false)
     onClose()
@@ -273,6 +276,35 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
                     '[color-scheme:dark]'
                   )}
                 />
+
+                {/* Alarm toggle — only meaningful once both a date and time are set */}
+                {dueTime && (
+                  <button
+                    onClick={() => setAlarmEnabled((v) => !v)}
+                    className={cn(
+                      'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-[12px] font-medium transition-all',
+                      alarmEnabled
+                        ? 'bg-primary/10 border-primary/40 text-primary'
+                        : 'border-border/50 text-muted-foreground/50 hover:border-primary/30 hover:text-primary/60'
+                    )}
+                  >
+                    {alarmEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+                    <span className="flex-1 text-left">Alert me at this time</span>
+                    <span
+                      className={cn(
+                        'w-8 h-[18px] rounded-full relative transition-colors flex-shrink-0',
+                        alarmEnabled ? 'bg-primary/40' : 'bg-border'
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'absolute top-[2px] w-[14px] h-[14px] rounded-full bg-foreground transition-transform',
+                          alarmEnabled ? 'translate-x-[18px]' : 'translate-x-[2px]'
+                        )}
+                      />
+                    </span>
+                  </button>
+                )}
               </div>
             )}
 

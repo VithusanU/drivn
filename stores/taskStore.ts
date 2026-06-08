@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { createClient } from '@/lib/supabase/client'
 import { getRecommendedTask, groupTasks, getQuickWins } from '@/lib/engine/recommendation'
 import { Analytics } from '@/lib/analytics'
+import { localToUTC } from '@/lib/notifications'
 import type { Task, TaskStore, CreateTaskInput, UpdateTaskInput, TaskGroup, RecommendedTask, TaskRecurrence } from '@/types'
 
 const TASK_LIMIT = 100
@@ -16,6 +17,14 @@ function nextDueDate(currentDate: string | null, recurrence: TaskRecurrence): st
   else if (recurrence === 'weekly') d.setDate(d.getDate() + 7)
   else if (recurrence === 'monthly') d.setMonth(d.getMonth() + 1)
   return d.toISOString().split('T')[0]
+}
+
+// due_time is stored/displayed in the user's local time, but the scheduler scans in UTC —
+// mirror the chosen local time into alarm_time_utc whenever an alarm is armed (same
+// localToUTC conversion used for the daily reminder_time on push_subscriptions).
+function deriveAlarmTimeUtc(alarmEnabled: boolean | undefined, dueTime: string | null | undefined): string | null {
+  if (!alarmEnabled || !dueTime) return null
+  return localToUTC(dueTime)
 }
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
@@ -66,6 +75,8 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         blocked_by: input.blocked_by ?? null,
         recurrence: input.recurrence ?? 'none',
         category: input.category ?? null,
+        alarm_enabled: input.alarm_enabled ?? false,
+        alarm_time_utc: deriveAlarmTimeUtc(input.alarm_enabled, input.due_time),
       })
       .select()
       .single()
@@ -80,9 +91,17 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   updateTask: async (id: string, input: UpdateTaskInput) => {
     const supabase = createClient()
 
+    // Only the full edit sheet sends `alarm_enabled` (always paired with `due_time`),
+    // so recompute the UTC mirror there. Quick-edit surfaces (e.g. TaskScanner) that
+    // patch `due_time` alone don't touch alarms — leave alarm_time_utc untouched.
+    const payload =
+      'alarm_enabled' in input
+        ? { ...input, alarm_time_utc: deriveAlarmTimeUtc(input.alarm_enabled, input.due_time) }
+        : input
+
     const { data, error } = await supabase
       .from('tasks')
-      .update(input)
+      .update(payload)
       .eq('id', id)
       .select()
       .single()

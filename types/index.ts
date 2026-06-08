@@ -42,6 +42,9 @@ export interface Task {
   estimated_minutes: number | null
   recurrence: TaskRecurrence
   category: TaskCategory | null
+  alarm_enabled: boolean
+  alarm_time_utc: string | null
+  last_alarm_at: string | null
   created_at: string
   updated_at: string
   completed_at: string | null
@@ -59,6 +62,7 @@ export interface CreateTaskInput {
   blocked_by?: string | null
   recurrence?: TaskRecurrence
   category?: TaskCategory | null
+  alarm_enabled?: boolean
 }
 
 export interface UpdateTaskInput {
@@ -71,6 +75,8 @@ export interface UpdateTaskInput {
   status?: TaskStatus
   blocked_by?: string | null
   recurrence?: TaskRecurrence
+  category?: TaskCategory | null
+  alarm_enabled?: boolean
 }
 
 // Derived — computed client-side

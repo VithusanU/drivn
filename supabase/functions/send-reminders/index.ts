@@ -13,6 +13,14 @@ function utcHHMM(base: Date, deltaMinutes = 0): string {
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
 }
 
+// Sends a single push notification, swallowing per-subscription failures
+async function pushTo(sub: { endpoint: string; p256dh: string; auth: string }, payload: Record<string, unknown>) {
+  return webpush.sendNotification(
+    { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+    JSON.stringify(payload),
+  )
+}
+
 Deno.serve(async () => {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -23,11 +31,66 @@ Deno.serve(async () => {
   const today = now.toISOString().slice(0, 10) // "YYYY-MM-DD" UTC
 
   // ±7 minute window around now (function is scheduled every 10 min,
-  // so this guarantees every reminder_time is hit exactly once)
+  // so this guarantees every reminder_time / alarm_time is hit exactly once)
   const windowStart = utcHHMM(now, -7)
   const windowEnd   = utcHHMM(now, +7)
-
   const crossesMidnight = windowStart > windowEnd
+
+  // ── Part 1: per-task alarms ("Gym at 6pm", "Jog at 7am", etc.) ──────────────
+  // These are independent of the user's daily reminder_time — a task with
+  // alarm_enabled fires its own push at its own due_date + due_time.
+  let alarmQuery = supabase
+    .from('tasks')
+    .select('id, user_id, title, due_time, last_alarm_at')
+    .eq('status', 'active')
+    .eq('alarm_enabled', true)
+    .eq('due_date', today)
+    .not('due_time', 'is', null)
+
+  alarmQuery = crossesMidnight
+    ? alarmQuery.or(`due_time.gte.${windowStart},due_time.lte.${windowEnd}`)
+    : alarmQuery.gte('due_time', windowStart).lte('due_time', windowEnd)
+
+  const { data: alarmTasks } = await alarmQuery
+
+  const dueAlarms = (alarmTasks ?? []).filter(
+    (t: any) => t.last_alarm_at?.slice(0, 10) !== today
+  )
+
+  let alarmsSent = 0
+  if (dueAlarms.length) {
+    const alarmUserIds = [...new Set(dueAlarms.map((t: any) => t.user_id))]
+    const { data: alarmSubs } = await supabase
+      .from('push_subscriptions')
+      .select('user_id, endpoint, p256dh, auth')
+      .in('user_id', alarmUserIds)
+      .not('endpoint', 'is', null)
+
+    const subByUser: Record<string, any> = {}
+    for (const s of (alarmSubs ?? []) as any[]) subByUser[s.user_id] = s
+
+    const alarmResults = await Promise.allSettled(
+      dueAlarms.map((t: any) => {
+        const sub = subByUser[t.user_id]
+        if (!sub) return Promise.reject(new Error('no subscription'))
+        return pushTo(sub, {
+          title: `⏰ ${t.title}`,
+          body: "It's time — let's go.",
+          icon: '/logo.png',
+          url: '/',
+        })
+      })
+    )
+
+    alarmsSent = alarmResults.filter((r) => r.status === 'fulfilled').length
+
+    await supabase
+      .from('tasks')
+      .update({ last_alarm_at: now.toISOString() })
+      .in('id', dueAlarms.map((t: any) => t.id))
+  }
+
+  // ── Part 2: daily reminder (single time set in Profile) ─────────────────────
   let query = supabase
     .from('push_subscriptions')
     .select('user_id, endpoint, p256dh, auth, last_reminded_at')
@@ -43,14 +106,14 @@ Deno.serve(async () => {
   const { data: subs, error } = await query
 
   if (error || !subs?.length) {
-    return new Response(JSON.stringify({ sent: 0, window: `${windowStart}–${windowEnd}` }), { status: 200 })
+    return new Response(JSON.stringify({ sent: 0, alarmsSent, window: `${windowStart}–${windowEnd}` }), { status: 200 })
   }
 
   // Dedup: skip users already reminded today
   const eligible = subs.filter((s: any) => s.last_reminded_at?.slice(0, 10) !== today)
 
   if (!eligible.length) {
-    return new Response(JSON.stringify({ sent: 0, note: 'all already reminded today' }), { status: 200 })
+    return new Response(JSON.stringify({ sent: 0, alarmsSent, note: 'all already reminded today' }), { status: 200 })
   }
 
   // Fetch each user's most urgent active task for personalised notifications
@@ -71,17 +134,14 @@ Deno.serve(async () => {
   const results = await Promise.allSettled(
     eligible.map((sub: any) => {
       const taskTitle = taskMap[sub.user_id]
-      return webpush.sendNotification(
-        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        JSON.stringify({
-          title: '⚡ Time to get locked in',
-          body: taskTitle
-            ? `Start with: "${taskTitle}" — you've got this.`
-            : "Your daily reminder — open Drivn and knock out today's tasks.",
-          icon: '/logo.png',
-          url: '/',
-        }),
-      )
+      return pushTo(sub, {
+        title: '⚡ Time to get locked in',
+        body: taskTitle
+          ? `Start with: "${taskTitle}" — you've got this.`
+          : "Your daily reminder — open Drivn and knock out today's tasks.",
+        icon: '/logo.png',
+        url: '/',
+      })
     })
   )
 
@@ -94,5 +154,5 @@ Deno.serve(async () => {
     .update({ last_reminded_at: now.toISOString() })
     .in('user_id', userIds)
 
-  return new Response(JSON.stringify({ sent, window: `${windowStart}–${windowEnd}` }), { status: 200 })
+  return new Response(JSON.stringify({ sent, alarmsSent, window: `${windowStart}–${windowEnd}` }), { status: 200 })
 })
