@@ -4,7 +4,7 @@ import { format } from 'date-fns'
 import { Flame } from 'lucide-react'
 import { useUserStore } from '@/stores/userStore'
 import { useTaskStore } from '@/stores/taskStore'
-import { getGreeting } from '@/lib/utils'
+import { getGreeting, dueDateOnly } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 
 export default function AppHeader() {
@@ -15,7 +15,10 @@ export default function AppHeader() {
   const today = format(new Date(), 'EEEE, MMM d')
   const dueTodayCount = tasks.filter((t) => {
     if (!t.due_date) return false
-    const due = new Date(t.due_date)
+    // dueDateOnly extracts the calendar-date digits directly — using
+    // new Date(t.due_date) re-interprets the stored UTC-midnight instant in
+    // local time, rolling the date back a day for anyone west of UTC.
+    const due = dueDateOnly(t.due_date)
     const now = new Date()
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
     return due <= endOfDay && t.status === 'active'

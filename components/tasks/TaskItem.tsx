@@ -8,7 +8,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
 import { useUndoStore } from '@/stores/undoStore'
 import { isTaskBlocked } from '@/lib/engine/recommendation'
-import { formatDueDate, cn } from '@/lib/utils'
+import { formatDueDate, dueDateOnly, cn } from '@/lib/utils'
 import type { Task } from '@/types'
 import { TASK_CATEGORIES } from '@/types'
 
@@ -47,7 +47,10 @@ export default function TaskItem({ task, selectMode = false, selected = false, o
     : null
 
   const isDueDateOverdue =
-    task.due_date && new Date(task.due_date) < new Date() && !isToday(new Date(task.due_date))
+    task.due_date && (() => {
+      const due = dueDateOnly(task.due_date)
+      return due < new Date() && !isToday(due)
+    })()
 
   const doComplete = async () => {
     setCompleting(true)

@@ -1,4 +1,5 @@
 import { isAfter, isBefore, addHours, addDays, parseISO } from 'date-fns'
+import { effectiveDueDateTime } from '@/lib/utils'
 import type { Task, RecommendedTask, RecommendationReason, TaskGroup } from '@/types'
 
 // ─── Scoring weights ─────────────────────────────────────────────────────────
@@ -38,9 +39,15 @@ function scoreTask(task: Task, now: Date): { score: number; reason: Recommendati
 
   if (task.due_date) {
     const hasTime = !!task.due_time
-    const effectiveDue = hasTime
-      ? parseISO(`${task.due_date}T${task.due_time}`)
-      : parseISO(task.due_date)
+    // due_date is stored as a timestamptz holding UTC-midnight of the user's
+    // intended LOCAL calendar date (e.g. "2026-06-07" -> "2026-06-07T00:00:00+00:00").
+    // `parseISO(task.due_date)` would re-interpret that UTC instant in the
+    // viewer's timezone (rolling the date back a day west of UTC), and
+    // `parseISO(`${task.due_date}T${task.due_time}`)` produces a malformed
+    // string ("...+00:00T20:45") that parses to Invalid Date. effectiveDueDateTime
+    // pulls the calendar-date digits directly and combines with due_time in
+    // local time — the date/time the user actually picked.
+    const effectiveDue = effectiveDueDateTime(task.due_date, hasTime ? task.due_time : null)
 
     if (hasTime) {
       // Precise time-aware scoring: compare exact datetime
@@ -169,7 +176,7 @@ export function groupTasks(tasks: Task[]): Record<TaskGroup, Task[]> {
     if (task.status !== 'active') continue
 
     const effectiveDue = task.due_date
-      ? (task.due_time ? parseISO(`${task.due_date}T${task.due_time}`) : parseISO(task.due_date))
+      ? effectiveDueDateTime(task.due_date, task.due_time)
       : null
 
     if (!effectiveDue) {
@@ -191,7 +198,7 @@ export function groupTasks(tasks: Task[]): Record<TaskGroup, Task[]> {
 
   const getEffectiveMs = (t: Task): number => {
     if (!t.due_date) return Infinity
-    return (t.due_time ? parseISO(`${t.due_date}T${t.due_time}`) : parseISO(t.due_date)).getTime()
+    return effectiveDueDateTime(t.due_date, t.due_time).getTime()
   }
 
   for (const key of Object.keys(groups) as TaskGroup[]) {
