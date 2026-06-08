@@ -106,3 +106,51 @@
     padding-top: env(safe-area-inset-top);
   }
 }
+
+/* ── Home dashboard grid ──────────────────────────────────────────
+   Single source of DOM order (see app/(app)/page.tsx) — every widget
+   renders exactly once, in its normal mobile order, so nothing ever
+   double-fetches or double-mounts. `grid-template-areas` is what lets
+   us completely re-arrange the VISUAL layout per breakpoint without
+   touching the DOM: mobile keeps today's single-column stack exactly
+   as-is, while `lg:` (1024px+) switches to a 65/35 two-column split —
+   a "do stuff" spine on the left, glanceable context (events, habits,
+   momentum, today's spark) in a right rail — so desktop finally uses
+   the wide whitespace for content that's already built and already
+   useful, instead of just stretching the mobile column out. */
+.home-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    'nudge'
+    'nba'
+    'upcoming'
+    'quickwins'
+    'quote'
+    'taskgroups'
+    'habits'
+    'momentum';
+  gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .home-grid {
+    grid-template-columns: 65fr 35fr;
+    column-gap: 2.5rem;
+    grid-template-areas:
+      'nudge      nudge'
+      'nba        upcoming'
+      'quickwins  quote'
+      'taskgroups habits'
+      'taskgroups momentum';
+  }
+}
+
+.home-grid__nudge { grid-area: nudge; }
+.home-grid__nba { grid-area: nba; }
+.home-grid__upcoming { grid-area: upcoming; }
+.home-grid__quickwins { grid-area: quickwins; }
+.home-grid__quote { grid-area: quote; }
+.home-grid__taskgroups { grid-area: taskgroups; }
+.home-grid__habits { grid-area: habits; }
+.home-grid__momentum { grid-area: momentum; }

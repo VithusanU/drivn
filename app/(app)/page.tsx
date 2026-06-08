@@ -47,10 +47,15 @@ export default function HomePage() {
     <div className="flex flex-col min-h-screen">
       <AppHeader />
 
-      <div className="flex-1 px-4 pb-6 space-y-6 overflow-y-auto no-scrollbar scroll-momentum">
+      {/* `home-grid` (see globals.css) keeps the DOM/fetch order identical to
+          the mobile visual order — every widget renders exactly once — while
+          `grid-template-areas` re-arranges things into a 65/35 two-column
+          layout on `lg:`+ screens. Mobile renders this as a plain single
+          column stack, pixel-identical to the previous `space-y-6` layout. */}
+      <div className="home-grid flex-1 px-4 pb-6 overflow-y-auto no-scrollbar scroll-momentum">
         {/* Profile completeness nudge */}
         {profileIncomplete && (
-          <div className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl border border-amber-400/20 bg-amber-400/5">
+          <div className="home-grid__nudge flex items-center gap-3 px-3.5 py-2.5 rounded-xl border border-amber-400/20 bg-amber-400/5">
             <span className="text-sm flex-shrink-0">👤</span>
             <p className="flex-1 text-[12px] text-muted-foreground/70">
               Complete your profile so friends can find you.{' '}
@@ -62,23 +67,33 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Core: Next Best Action */}
-        <NextBestAction />
+        {/* Core: Next Best Action — anchors the left "do stuff" spine on desktop */}
+        <div className="home-grid__nba">
+          <NextBestAction />
+        </div>
 
-        {/* Upcoming events this week */}
-        <UpcomingEvents />
+        {/* Upcoming events this week — top of the right context rail on desktop */}
+        <div className="home-grid__upcoming">
+          <UpcomingEvents />
+        </div>
 
         {/* Quick wins strip */}
-        <QuickWins />
+        <div className="home-grid__quickwins">
+          <QuickWins />
+        </div>
 
         {/* Daily motivational quote */}
-        <MotivationalQuote />
+        <div className="home-grid__quote">
+          <MotivationalQuote />
+        </div>
 
-        {/* Task Groups: Now / Soon / Later */}
-        <TaskGroups />
+        {/* Task Groups: Now / Soon / Later — spans the full left column height on desktop */}
+        <div className="home-grid__taskgroups">
+          <TaskGroups />
+        </div>
 
         {/* Habits strip */}
-        <section>
+        <section className="home-grid__habits">
           <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3">
             Today&apos;s habits
           </p>
@@ -86,7 +101,7 @@ export default function HomePage() {
         </section>
 
         {/* Momentum */}
-        <section>
+        <section className="home-grid__momentum">
           <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3">
             Momentum
           </p>

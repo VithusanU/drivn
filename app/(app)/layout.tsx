@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect } from 'react'
+import { usePathname } from 'next/navigation'
+import { cn } from '@/lib/utils'
 import BottomNav from '@/components/layout/BottomNav'
 import SideNav from '@/components/layout/SideNav'
 import UndoToast from '@/components/ui/UndoToast'
@@ -16,6 +18,14 @@ import { Analytics } from '@/lib/analytics'
 import { getReminderTime } from '@/lib/notifications'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+  // Home is the only route that opts into the wider 65/35 two-column desktop
+  // grid (see app/(app)/page.tsx + .home-grid in globals.css) — every other
+  // route (Habits, Friends, Summary, Profile, etc.) keeps the centered
+  // max-w-2xl reading-width column they already have. Scoped via pathname so
+  // this is purely additive: nothing about any other route changes.
+  const isHome = pathname === '/'
+
   const fetchTasks = useTaskStore((s) => s.fetchTasks)
   const fetchHabits = useHabitStore((s) => s.fetchHabits)
   const fetchTodayCompletions = useHabitStore((s) => s.fetchTodayCompletions)
@@ -82,7 +92,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             the visual gap below the nav constant across devices instead of
             risking content getting tucked behind a taller-than-expected bar
             on iPhones with a home indicator. */}
-        <div className="max-w-2xl mx-auto px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-12 pt-0">
+        <div className={cn(
+          'mx-auto px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-12 pt-0',
+          // Home gets a wider stage at lg:/xl: so its 65/35 grid has room to
+          // breathe; every other route stays at the original max-w-2xl.
+          isHome ? 'max-w-2xl lg:max-w-5xl xl:max-w-6xl' : 'max-w-2xl'
+        )}>
           <ErrorBoundary>
             {children}
           </ErrorBoundary>
