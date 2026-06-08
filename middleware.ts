@@ -50,5 +50,11 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  // PWA assets (service worker, web app manifest, Workbox runtime chunks) MUST
+  // be excluded from the auth check: they're fetched by the browser's service
+  // worker / push machinery, often without session cookies, and the auth
+  // middleware was redirecting them to /login — which serves an HTML page
+  // with the wrong MIME type, causing the browser to silently refuse to
+  // register/update the service worker (so push events never reached it).
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|sw\\.js|workbox-.*\\.js|manifest\\.(?:json|webmanifest)|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }
