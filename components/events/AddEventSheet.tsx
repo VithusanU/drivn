@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Check, Calendar, Clock, Repeat } from 'lucide-react'
+import { X, Check, Calendar, Clock, Repeat, Bell, BellOff } from 'lucide-react'
 import { useEventStore } from '@/stores/eventStore'
 import { useUndoStore } from '@/stores/undoStore'
 import { cn } from '@/lib/utils'
@@ -47,6 +47,7 @@ export default function AddEventSheet({ open, onClose, editingEvent }: Props) {
   const [recurrence, setRecurrence] = useState<EventRecurrence>(editingEvent?.recurrence ?? 'none')
   const [recurrenceDays, setRecurrenceDays] = useState(editingEvent?.recurrence_days ?? 14)
   const [notes, setNotes] = useState(editingEvent?.notes ?? '')
+  const [alarmEnabled, setAlarmEnabled] = useState<boolean>(editingEvent?.alarm_enabled ?? false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
 
@@ -65,6 +66,9 @@ export default function AddEventSheet({ open, onClose, editingEvent }: Props) {
       recurrence,
       recurrence_days: recurrence === 'custom' ? recurrenceDays : null,
       notes: notes.trim() || null,
+      // Only meaningful once a time is set — mirrors TaskEditSheet's gating so
+      // an alarm can never be armed against a time-less event.
+      alarm_enabled: date && time ? alarmEnabled : false,
     }
 
     if (editingEvent) {
@@ -213,6 +217,33 @@ export default function AddEventSheet({ open, onClose, editingEvent }: Props) {
                   />
                 </div>
               </div>
+
+              {/* Alarm toggle — only meaningful once a time is set. Mirrors the
+                  "Alert me at this time" row in TaskEditSheet.tsx. */}
+              {time && (
+                <button
+                  onClick={() => setAlarmEnabled((v) => !v)}
+                  className={cn(
+                    'w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all',
+                    alarmEnabled
+                      ? 'bg-primary/10 border-primary/40'
+                      : 'border-border/50 hover:border-primary/30'
+                  )}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {alarmEnabled
+                      ? <Bell className="w-3.5 h-3.5 text-primary" />
+                      : <BellOff className="w-3.5 h-3.5 text-muted-foreground/50" />
+                    }
+                    <span className={cn('text-[12px] font-medium', alarmEnabled ? 'text-primary' : 'text-muted-foreground/60')}>
+                      Alert me at this time
+                    </span>
+                  </div>
+                  <span className={cn('text-[11px] font-medium', alarmEnabled ? 'text-primary' : 'text-muted-foreground/40')}>
+                    {alarmEnabled ? 'On' : 'Off'}
+                  </span>
+                </button>
+              )}
 
               {/* Recurrence */}
               <div className="space-y-2">

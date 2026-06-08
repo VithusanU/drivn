@@ -152,6 +152,9 @@ export interface CalendarEvent {
   recurrence: EventRecurrence
   recurrence_days: number | null   // for 'custom' recurrence
   notes: string | null
+  alarm_enabled: boolean
+  alarm_at: string | null
+  last_alarm_at: string | null
   created_at: string
 }
 
@@ -163,6 +166,7 @@ export interface CreateEventInput {
   recurrence?: EventRecurrence
   recurrence_days?: number | null
   notes?: string | null
+  alarm_enabled?: boolean
 }
 
 export interface UpdateEventInput {
@@ -173,6 +177,7 @@ export interface UpdateEventInput {
   recurrence?: EventRecurrence
   recurrence_days?: number | null
   notes?: string | null
+  alarm_enabled?: boolean
 }
 
 export interface EventStore {

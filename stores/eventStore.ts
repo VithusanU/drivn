@@ -4,6 +4,23 @@ import { create } from 'zustand'
 import { createClient } from '@/lib/supabase/client'
 import type { CalendarEvent, CreateEventInput, UpdateEventInput, EventStore } from '@/types'
 
+// event_date/event_time are local calendar values ("2026-06-08" / "15:00"). To let
+// the scheduler do a single unambiguous comparison, collapse them into one absolute
+// UTC instant (alarm_at) right here — `new Date(y, m, d, h, mi)` interprets its
+// arguments in the *browser's* timezone (the user's), and toISOString() converts
+// that to UTC. Mirrors deriveAlarmAt in stores/taskStore.ts exactly.
+function deriveEventAlarmAt(
+  alarmEnabled: boolean | undefined,
+  eventDate: string | null | undefined,
+  eventTime: string | null | undefined
+): string | null {
+  if (!alarmEnabled || !eventDate || !eventTime) return null
+  const [y, mo, d] = eventDate.split('-').map(Number)
+  const [h, mi] = eventTime.split(':').map(Number)
+  if (!y || !mo || !d || Number.isNaN(h) || Number.isNaN(mi)) return null
+  return new Date(y, mo - 1, d, h, mi, 0, 0).toISOString()
+}
+
 // Next occurrence date for recurring events
 function nextOccurrence(event: CalendarEvent): string {
   const base = new Date(event.event_date)
@@ -57,6 +74,8 @@ export const useEventStore = create<EventStore>((set, get) => ({
         recurrence: input.recurrence ?? 'none',
         recurrence_days: input.recurrence_days ?? null,
         notes: input.notes ?? null,
+        alarm_enabled: input.alarm_enabled ?? false,
+        alarm_at: deriveEventAlarmAt(input.alarm_enabled, input.event_date, input.event_time),
       })
       .select()
       .single()
@@ -72,9 +91,20 @@ export const useEventStore = create<EventStore>((set, get) => ({
 
   updateEvent: async (id: string, input: UpdateEventInput) => {
     const supabase = createClient()
+
+    // Only the full edit sheet sends `alarm_enabled` (always paired with
+    // `event_date`/`event_time`), so recompute the combined UTC instant there.
+    // Quick-edits that patch other fields alone don't touch alarms — leave
+    // alarm_at untouched so an armed alarm doesn't silently get cleared.
+    // Mirrors updateTask in stores/taskStore.ts exactly.
+    const payload =
+      'alarm_enabled' in input
+        ? { ...input, alarm_at: deriveEventAlarmAt(input.alarm_enabled, input.event_date, input.event_time) }
+        : input
+
     const { data, error } = await supabase
       .from('events')
-      .update(input)
+      .update(payload)
       .eq('id', id)
       .select()
       .single()

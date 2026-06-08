@@ -169,7 +169,90 @@ async function handle(): Promise<Response> {
       .in('id', dueAlarms.map((t: any) => t.id))
   }
 
-  // ── Part 2: daily reminder (single time set in Profile, USER-level) ─────────
+  // ── Part 2: per-event alarms ("Dentist at 3pm", "Oil change at 9am", etc.) ──
+  // Mirrors Part 1 exactly — events are independent of tasks and the daily
+  // reminder; an event with alarm_enabled fires its own push at its own
+  // alarm_at instant. alarm_at is a precomputed UTC timestamp (the client
+  // collapses the user's local event_date + event_time into one absolute
+  // instant — see deriveEventAlarmAt in stores/eventStore.ts), so this is a
+  // plain range check, same as task alarms (migration 021_event_alarms).
+  const { data: alarmEvents } = await supabase
+    .from('events')
+    .select('id, user_id, title, alarm_at, last_alarm_at')
+    .eq('alarm_enabled', true)
+    .not('alarm_at', 'is', null)
+    .gte('alarm_at', alarmWindowStart)
+    .lte('alarm_at', alarmWindowEnd)
+
+  const dueEventAlarms = (alarmEvents ?? []).filter(
+    (e: any) => e.last_alarm_at?.slice(0, 10) !== today
+  )
+
+  let eventAlarmsSent = 0
+  let eventAlarmDebug: Array<{ taskId: string; userId: string; hasSub: boolean; status: string; reason?: string; statusCode?: number; endpoint?: string }> | undefined
+  if (dueEventAlarms.length) {
+    const eventAlarmUserIds = [...new Set(dueEventAlarms.map((e: any) => e.user_id))]
+    const { data: eventAlarmSubs } = await supabase
+      .from('push_subscriptions')
+      .select('user_id, endpoint, p256dh, auth')
+      .in('user_id', eventAlarmUserIds)
+      .not('endpoint', 'is', null)
+
+    // Multi-device aware (migration 020_multi_device_push) — fan each event
+    // alarm out to every device the owner is subscribed on.
+    const eventSubsByUser: Record<string, any[]> = {}
+    for (const s of (eventAlarmSubs ?? []) as any[]) {
+      (eventSubsByUser[s.user_id] ??= []).push(s)
+    }
+
+    const eventSendList: Array<{ event: any; sub: any }> = []
+    for (const e of dueEventAlarms as any[]) {
+      for (const sub of eventSubsByUser[e.user_id] ?? []) eventSendList.push({ event: e, sub })
+    }
+
+    const eventAlarmResults = await Promise.allSettled(
+      eventSendList.map(({ event, sub }) =>
+        pushTo(sub, {
+          title: `📅 ${event.title}`,
+          body: "It's time — let's go.",
+          icon: '/logo.png',
+          url: '/',
+        })
+      )
+    )
+
+    eventAlarmsSent = eventAlarmResults.filter((r) => r.status === 'fulfilled').length
+
+    eventAlarmDebug = eventAlarmResults.map((r, i) => {
+      const { event, sub } = eventSendList[i]
+      return {
+        taskId: event.id,
+        userId: event.user_id,
+        hasSub: true,
+        status: r.status,
+        reason: r.status === 'rejected'
+          ? (r.reason?.body || r.reason?.message || String(r.reason))
+          : (r.value?.body || undefined),
+        statusCode: r.status === 'rejected' ? r.reason?.statusCode : r.value?.statusCode,
+        endpoint: String(sub.endpoint).slice(0, 60),
+      }
+    })
+
+    // Events whose owner has zero subscriptions still need to surface in the
+    // debug output — otherwise "why didn't my event alarm fire" is invisible.
+    for (const e of dueEventAlarms as any[]) {
+      if (!(eventSubsByUser[e.user_id]?.length)) {
+        eventAlarmDebug.push({ taskId: e.id, userId: e.user_id, hasSub: false, status: 'rejected', reason: 'no subscription' })
+      }
+    }
+
+    await supabase
+      .from('events')
+      .update({ last_alarm_at: now.toISOString() })
+      .in('id', dueEventAlarms.map((e: any) => e.id))
+  }
+
+  // ── Part 3: daily reminder (single time set in Profile, USER-level) ─────────
   // reminder_time / last_reminded_at now live on user_profiles (migration
   // 020_multi_device_push) — they're a per-user preference, not per-device,
   // since a user with N subscribed devices should still get exactly one
@@ -188,14 +271,14 @@ async function handle(): Promise<Response> {
   const { data: profiles, error } = await profileQuery
 
   if (error || !profiles?.length) {
-    return new Response(JSON.stringify({ sent: 0, alarmsSent, alarmDebug, window: `${windowStart}–${windowEnd}` }), { status: 200 })
+    return new Response(JSON.stringify({ sent: 0, alarmsSent, alarmDebug, eventAlarmsSent, eventAlarmDebug, window: `${windowStart}–${windowEnd}` }), { status: 200 })
   }
 
   // Dedup: skip users already reminded today
   const eligibleProfiles = profiles.filter((p: any) => p.last_reminded_at?.slice(0, 10) !== today)
 
   if (!eligibleProfiles.length) {
-    return new Response(JSON.stringify({ sent: 0, alarmsSent, alarmDebug, note: 'all already reminded today' }), { status: 200 })
+    return new Response(JSON.stringify({ sent: 0, alarmsSent, alarmDebug, eventAlarmsSent, eventAlarmDebug, note: 'all already reminded today' }), { status: 200 })
   }
 
   const eligibleUserIds = eligibleProfiles.map((p: any) => p.id)
@@ -244,5 +327,5 @@ async function handle(): Promise<Response> {
     .update({ last_reminded_at: now.toISOString() })
     .in('id', eligibleUserIds)
 
-  return new Response(JSON.stringify({ sent, alarmsSent, alarmDebug, window: `${windowStart}–${windowEnd}` }), { status: 200 })
+  return new Response(JSON.stringify({ sent, alarmsSent, alarmDebug, eventAlarmsSent, eventAlarmDebug, window: `${windowStart}–${windowEnd}` }), { status: 200 })
 }
