@@ -14,6 +14,7 @@ import MomentumCard from '@/components/dashboard/MomentumCard'
 import QuickCapture from '@/components/dashboard/QuickCapture'
 import QuickWins from '@/components/dashboard/QuickWins'
 import TodayFocus from '@/components/dashboard/TodayFocus'
+import DayContext from '@/components/dashboard/DayContext'
 import MotivationalQuote from '@/components/dashboard/MotivationalQuote'
 import UpcomingEvents from '@/components/dashboard/UpcomingEvents'
 import MiniCalendar from '@/components/dashboard/MiniCalendar'
@@ -91,6 +92,9 @@ export default function HomePage() {
         <div className="hidden lg:block home-grid__stats">
           <StatsPanel />
         </div>
+
+        {/* Day context — user tells AI what's happening today */}
+        <DayContext />
 
         {/* Today's Focus — hard deadlines + tasks due today */}
         <TodayFocus />

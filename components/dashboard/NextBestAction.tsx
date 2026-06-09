@@ -7,6 +7,7 @@ import { Zap, SkipForward, Trash2, Coffee, ArrowRight, Sparkles, RefreshCw } fro
 import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
 import { useAIStore } from '@/stores/aiStore'
+import { useContextStore } from '@/stores/contextStore'
 import { useTimerStore } from '@/stores/timerStore'
 import { useSessionStore } from '@/stores/sessionStore'
 import { getReasonLabel, formatEstimatedTime, getRecommendedTask } from '@/lib/engine/recommendation'
@@ -49,6 +50,7 @@ export default function NextBestAction() {
   const aiFetching = useAIStore((s) => s.fetching)
   const fetchAIRecommendation = useAIStore((s) => s.fetchRecommendation)
   const clearAI = useAIStore((s) => s.clear)
+  const contextText = useContextStore((s) => s.contextText)
 
   const timerTaskId = useTimerStore((s) => s.taskId)
   const timerTaskTitle = useTimerStore((s) => s.taskTitle)
@@ -65,15 +67,15 @@ export default function NextBestAction() {
 
   const isAIMode = betaModeEnabled && canUseAI
 
-  // Fetch AI recommendation whenever beta mode is on and tasks change
+  // Fetch AI recommendation whenever beta mode, tasks, or day context changes
   useEffect(() => {
     if (!isAIMode || tasks.length === 0) {
       clearAI()
       return
     }
     const filtered = tasks.filter((t) => !skippedIds.includes(t.id))
-    fetchAIRecommendation(filtered)
-  }, [isAIMode, tasks.length, skippedIds.length]) // eslint-disable-line react-hooks/exhaustive-deps
+    fetchAIRecommendation(filtered, false, contextText)
+  }, [isAIMode, tasks.length, skippedIds.length, contextText]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Stale timer card (task was completed/deleted but timer persisted) ────────
   if (timerTaskId && hasFetched && !timerTaskExists) {
@@ -264,7 +266,7 @@ export default function NextBestAction() {
           {isAIMode && (
             <div className="flex items-center gap-2">
               <button
-                onClick={() => fetchAIRecommendation(filteredTasks, true)}
+                onClick={() => fetchAIRecommendation(filteredTasks, true, contextText)}
                 disabled={aiFetching}
                 className="p-1 rounded-full text-white/20 hover:text-white/50 transition-colors disabled:opacity-30"
                 aria-label="Refresh AI recommendation"

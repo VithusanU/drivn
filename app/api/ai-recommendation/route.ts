@@ -38,10 +38,15 @@ export async function POST(req: Request) {
   }
 
   // ── Parse body ──────────────────────────────────────────────────────────────
-  const { tasks, force } = (await req.json()) as { tasks: Task[]; force?: boolean }
+  const { tasks, force, context } = (await req.json()) as {
+    tasks: Task[]
+    force?: boolean
+    context?: string
+  }
 
   // ── Supabase cache check (replaces broken in-memory Map) ───────────────────
-  if (!force) {
+  // If context is provided, treat as forced refresh — the day's constraints changed
+  if (!force && !context) {
     const { data: cached } = await supabase
       .from('ai_recommendation_cache')
       .select('json, expires_at')
@@ -94,12 +99,13 @@ Soft rules:
 - Read task titles semantically — a bug fix affecting users outweighs a cosmetic change even with equal metadata
 - Consider downstream impact: completing a blocker that unblocks 2+ tasks is often best
 - Factor in time of day and day of week for energy-matching
+- When user context is provided, honour those constraints above soft rules (e.g. if they say "low energy", prefer shorter tasks; if they mention a meeting at 3pm, don't recommend a 2h task at 2pm)
 
 Respond with ONLY valid JSON — no markdown, no explanation:
 {"taskId":"<id or null>","reason":"<max 12 words>","quickWinIds":["<id>"]}
 
 Current time: ${timeContext}
-
+${context ? `\nUser's context for today: ${context}\n` : ''}
 Tasks:
 ${JSON.stringify(taskList, null, 2)}
 
