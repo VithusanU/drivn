@@ -120,7 +120,7 @@ export default function DayContext() {
         animate={{ opacity: 1, y: 0 }}
         onClick={handleOpen}
         className={cn(
-          'w-full flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl text-left',
+          'w-full flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl text-left overflow-hidden',
           'bg-primary/5 border border-primary/15',
           'hover:bg-primary/8 hover:border-primary/25 transition-colors'
         )}
@@ -131,9 +131,11 @@ export default function DayContext() {
             Context
           </span>
         </div>
-        <p className="flex-1 text-[12px] text-foreground/60 leading-relaxed line-clamp-2 min-w-0">
-          {contextText}
-        </p>
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <p className="text-[12px] text-foreground/60 leading-relaxed line-clamp-2">
+            {contextText}
+          </p>
+        </div>
         <button
           onClick={handleClear}
           className="flex-shrink-0 mt-0.5 text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
