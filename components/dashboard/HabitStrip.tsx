@@ -64,9 +64,8 @@ interface HabitRowProps {
 
 function HabitRow({ habits, onTap }: HabitRowProps) {
   return (
-    // Negative margin breaks out of the parent px-4 so the scroll goes edge-to-edge
-    <div className="relative -mx-4">
-      <div className="flex gap-2.5 overflow-x-auto no-scrollbar scroll-momentum px-4 pb-1 snap-x snap-mandatory scroll-pl-4">
+    <div className="relative">
+      <div className="flex gap-2.5 overflow-x-auto no-scrollbar scroll-momentum pb-1 pr-4 snap-x snap-mandatory">
         {habits.map((habit) => {
           const state = getHabitState(habit)
           const progress = habit.detail_type === 'amount' ? getAmountProgress(habit) : null
