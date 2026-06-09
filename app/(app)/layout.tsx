@@ -1,26 +1,41 @@
 'use client'
 
 import { useEffect } from 'react'
+import { usePathname } from 'next/navigation'
+import { cn } from '@/lib/utils'
 import BottomNav from '@/components/layout/BottomNav'
 import SideNav from '@/components/layout/SideNav'
 import UndoToast from '@/components/ui/UndoToast'
+import ErrorBoundary from '@/components/ui/ErrorBoundary'
 import { useTaskStore } from '@/stores/taskStore'
 import { useHabitStore } from '@/stores/habitStore'
 import { useUserStore } from '@/stores/userStore'
+import { useEventStore } from '@/stores/eventStore'
 import { useGlobalTimer } from '@/hooks/useGlobalTimer'
 import { useGlobalSpotifyPlayer } from '@/hooks/useGlobalSpotifyPlayer'
+import { usePresenceSync } from '@/hooks/usePresenceSync'
 import { Analytics } from '@/lib/analytics'
 import { getReminderTime } from '@/lib/notifications'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+  // Home is the only route that opts into the wider 65/35 two-column desktop
+  // grid (see app/(app)/page.tsx + .home-grid in globals.css) — every other
+  // route (Habits, Friends, Summary, Profile, etc.) keeps the centered
+  // max-w-2xl reading-width column they already have. Scoped via pathname so
+  // this is purely additive: nothing about any other route changes.
+  const isHome = pathname === '/'
+
   const fetchTasks = useTaskStore((s) => s.fetchTasks)
   const fetchHabits = useHabitStore((s) => s.fetchHabits)
   const fetchTodayCompletions = useHabitStore((s) => s.fetchTodayCompletions)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
   const fetchStreak = useUserStore((s) => s.fetchStreak)
+  const fetchEvents = useEventStore((s) => s.fetchEvents)
 
   useGlobalTimer()
   useGlobalSpotifyPlayer()
+  usePresenceSync()
 
   // Re-fetch completions when the tab becomes visible again — guards against the app
   // being left open overnight so yesterday's data doesn't bleed into a new day.
@@ -39,6 +54,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       fetchTodayCompletions(),
       fetchProfile(),
       fetchStreak(),
+      fetchEvents(),
     ])
 
     // Track session start once per day
@@ -59,7 +75,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         Analytics.returnedAfterReminder()
       }
     })
-  }, [fetchTasks, fetchHabits, fetchTodayCompletions, fetchProfile, fetchStreak])
+  }, [fetchTasks, fetchHabits, fetchTodayCompletions, fetchProfile, fetchStreak, fetchEvents])
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -69,9 +85,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0">
-        <div className="max-w-2xl mx-auto px-4 pb-24 md:pb-12 pt-0">
-          {children}
+      <main className="flex-1 min-w-0 overflow-x-hidden">
+        {/* Bottom padding must clear the fixed mobile BottomNav (60px tall,
+            plus env(safe-area-inset-bottom) on notched phones — see
+            BottomNav.tsx's `min-h-[60px] pb-safe`). Using calc() here keeps
+            the visual gap below the nav constant across devices instead of
+            risking content getting tucked behind a taller-than-expected bar
+            on iPhones with a home indicator. */}
+        <div className={cn(
+          'mx-auto px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-12 pt-0',
+          // Home gets a wider stage at lg:/xl: so its 65/35 grid has room to
+          // breathe; every other route stays at the original max-w-2xl.
+          isHome ? 'max-w-2xl lg:max-w-5xl xl:max-w-6xl' : 'max-w-2xl'
+        )}>
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </div>
       </main>
 

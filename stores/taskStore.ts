@@ -4,12 +4,43 @@ import { create } from 'zustand'
 import { createClient } from '@/lib/supabase/client'
 import { getRecommendedTask, groupTasks, getQuickWins } from '@/lib/engine/recommendation'
 import { Analytics } from '@/lib/analytics'
-import type { Task, TaskStore, CreateTaskInput, UpdateTaskInput, TaskGroup, RecommendedTask } from '@/types'
+import type { Task, TaskStore, CreateTaskInput, UpdateTaskInput, TaskGroup, RecommendedTask, TaskRecurrence } from '@/types'
+
+const TASK_LIMIT = 100
+
+// Calculate next due date for recurring tasks
+function nextDueDate(currentDate: string | null, recurrence: TaskRecurrence): string | null {
+  if (!currentDate || recurrence === 'none') return null
+  const d = new Date(currentDate)
+  if (recurrence === 'daily') d.setDate(d.getDate() + 1)
+  else if (recurrence === 'weekly') d.setDate(d.getDate() + 7)
+  else if (recurrence === 'monthly') d.setMonth(d.getMonth() + 1)
+  return d.toISOString().split('T')[0]
+}
+
+// due_date/due_time are local calendar values ("2026-06-08" / "20:23"). To let the
+// scheduler do a single unambiguous comparison, collapse them into one absolute UTC
+// instant (alarm_at) right here — `new Date(y, m, d, h, mi)` interprets its arguments
+// in the *browser's* timezone (the user's), and toISOString() converts that to UTC.
+// This avoids splitting into a date-string + time-string, which is what caused the
+// previous off-by-a-day matching bug across timezones.
+function deriveAlarmAt(
+  alarmEnabled: boolean | undefined,
+  dueDate: string | null | undefined,
+  dueTime: string | null | undefined
+): string | null {
+  if (!alarmEnabled || !dueDate || !dueTime) return null
+  const [y, mo, d] = dueDate.split('-').map(Number)
+  const [h, mi] = dueTime.split(':').map(Number)
+  if (!y || !mo || !d || Number.isNaN(h) || Number.isNaN(mi)) return null
+  return new Date(y, mo - 1, d, h, mi, 0, 0).toISOString()
+}
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
   tasks: [],
   isLoading: false,
   hasFetched: false,
+  hasMore: false,
   error: null,
 
   fetchTasks: async () => {
@@ -21,9 +52,15 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
+        .limit(TASK_LIMIT)
 
       if (error) throw error
-      set({ tasks: data ?? [], isLoading: false, hasFetched: true })
+      set({
+        tasks: data ?? [],
+        isLoading: false,
+        hasFetched: true,
+        hasMore: (data?.length ?? 0) === TASK_LIMIT,
+      })
     } catch (err) {
       set({ error: (err as Error).message, isLoading: false, hasFetched: true })
     }
@@ -45,6 +82,10 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         due_time: input.due_time ?? null,
         estimated_minutes: input.estimated_minutes ?? null,
         blocked_by: input.blocked_by ?? null,
+        recurrence: input.recurrence ?? 'none',
+        category: input.category ?? null,
+        alarm_enabled: input.alarm_enabled ?? false,
+        alarm_at: deriveAlarmAt(input.alarm_enabled, input.due_date, input.due_time),
         is_hard_deadline: input.is_hard_deadline ?? false,
       })
       .select()
@@ -60,9 +101,18 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   updateTask: async (id: string, input: UpdateTaskInput) => {
     const supabase = createClient()
 
+    // Only the full edit sheet sends `alarm_enabled` (always paired with `due_date`/
+    // `due_time`), so recompute the combined UTC instant there. Quick-edit surfaces
+    // (e.g. TaskScanner) that patch `due_time` alone don't touch alarms — leave
+    // alarm_at untouched so an armed alarm doesn't silently get cleared.
+    const payload =
+      'alarm_enabled' in input
+        ? { ...input, alarm_at: deriveAlarmAt(input.alarm_enabled, input.due_date, input.due_time) }
+        : input
+
     const { data, error } = await supabase
       .from('tasks')
-      .update(input)
+      .update(payload)
       .eq('id', id)
       .select()
       .single()
@@ -79,6 +129,8 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
+    const task = get().tasks.find((t) => t.id === id)
+
     // Mark task as completed
     await supabase
       .from('tasks')
@@ -88,11 +140,37 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     // Record streak update via server function
     await supabase.rpc('record_task_completion', { p_user_id: user.id })
 
+    // Log activity for friends feed (fire-and-forget)
+    if (task) {
+      supabase.from('friend_activities').insert({
+        user_id: user.id,
+        type: 'task_completed',
+        task_title: task.title,
+      }).then().catch(() => {})
+    }
+
     // Remove from local state
     set((state) => ({
       tasks: state.tasks.filter((t) => t.id !== id),
     }))
     Analytics.taskCompleted()
+
+    // If recurring, auto-create next occurrence
+    if (task && task.recurrence !== 'none') {
+      const nextDate = nextDueDate(task.due_date, task.recurrence as TaskRecurrence)
+      if (nextDate) {
+        await get().createTask({
+          title: task.title,
+          description: task.description ?? undefined,
+          urgency: task.urgency,
+          due_date: nextDate,
+          due_time: task.due_time,
+          estimated_minutes: task.estimated_minutes,
+          recurrence: task.recurrence as TaskRecurrence,
+          category: task.category ?? undefined,
+        })
+      }
+    }
   },
 
   deleteTask: async (id: string) => {

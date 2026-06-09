@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Pause, Play, Plus, Coffee, Minus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -51,15 +51,28 @@ export default function FocusTimer({ taskId, initialMinutes, onComplete, taskTit
   const [breakPickerOpen, setBreakPickerOpen] = useState(false)
   const [breakMinutes, setBreakMinutes] = useState(10)
 
-  // Init only if this task isn't already the active one — preserves timer when navigating back
+  // Track the last initialMinutes we acted on so we can diff on edits
+  const prevMinutesRef = useRef<number>(initialMinutes)
+
+  // • First mount: init the timer unless this task is already the active one
+  //   (preserves the running timer when the user navigates away and back).
+  // • Subsequent renders: if initialMinutes changed (user edited the estimate
+  //   while on this page), adjust the live timer by the difference so progress
+  //   is preserved — no hard reset.
   useEffect(() => {
-    if (useTimerStore.getState().taskId !== taskId) {
+    const store = useTimerStore.getState()
+    if (store.taskId !== taskId) {
       initTimer(taskId, taskTitle ?? '', initialMinutes)
+    } else if (prevMinutesRef.current !== initialMinutes) {
+      const diff = initialMinutes - prevMinutesRef.current
+      addTime(diff)
     }
+    prevMinutesRef.current = initialMinutes
+
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission()
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [taskId, initialMinutes]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStartBreak = () => {
     startBreak(breakMinutes)

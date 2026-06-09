@@ -91,4 +91,87 @@
   .touch-target {
     min-height: 44px;
   }
+
+  /* Adds the iOS home-indicator / Android gesture-bar inset as bottom padding,
+     so fixed-bottom UI (sheet footers, bottom nav, primary CTAs) never sits
+     under — or gets obscured by — the system gesture area on notched/no-button
+     phones. Requires `viewport-fit=cover` in the viewport meta (see
+     app/layout.tsx) — without it, env(safe-area-inset-*) always resolves to 0.
+     `max()` keeps a sensible minimum gap on devices that report 0 (e.g. older
+     iPhones, most Android browsers, desktop). */
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
 }
+
+/* ── Home dashboard grid ──────────────────────────────────────────
+   Single source of DOM order (see app/(app)/page.tsx) — every widget
+   renders exactly once, in its normal mobile order, so nothing ever
+   double-fetches or double-mounts. `grid-template-areas` is what lets
+   us completely re-arrange the VISUAL layout per breakpoint without
+   touching the DOM: mobile keeps today's single-column stack exactly
+   as-is, while `lg:` (1024px+) switches to a 65/35 two-column split —
+   a "do stuff" spine on the left, glanceable context (events, habits,
+   momentum, today's spark) in a right rail — so desktop finally uses
+   the wide whitespace for content that's already built and already
+   useful, instead of just stretching the mobile column out. */
+.home-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    'nudge'
+    'nba'
+    'upcoming'
+    'quickwins'
+    'quote'
+    'taskgroups'
+    'habits'
+    'momentum';
+  gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .home-grid {
+    grid-template-columns: 65fr 35fr;
+    column-gap: 2.5rem;
+    /* Row-pairings are chosen by HEIGHT COMPATIBILITY, not just topical fit —
+       a CSS grid row is as tall as its tallest cell, so pairing a
+       conditionally-empty/short widget against a consistently-tall one
+       creates a dead gap (this bit us once already: QuickWins renders `null`
+       whenever there are no quick-win-eligible tasks — see QuickWins.tsx —
+       and was originally paired against the ~300px MiniCalendar, leaving a
+       call-shaped hole whenever the strip was empty).
+         - quickwins ↔ stats: both compact, glanceable cards (~70-90px) —
+           heights track each other whether or not quickwins has content.
+         - taskgroups ↔ calendar/quote/habits/momentum: TaskGroups is the
+           dominant, naturally-tall "Now / Soon / Later" work surface, so it
+           comfortably absorbs the combined height of four shorter rail
+           widgets across its 4-row span instead of leaving them stranded
+           next to empty space.
+       If you're tempted to move MiniCalendar up next to UpcomingEvents for
+       topical grouping — don't, without first checking that whatever ends up
+       paired against it can't independently render short or empty. */
+    grid-template-areas:
+      'nudge      nudge'
+      'nba        upcoming'
+      'quickwins  stats'
+      'taskgroups calendar'
+      'taskgroups quote'
+      'taskgroups habits'
+      'taskgroups momentum';
+  }
+}
+
+.home-grid__nudge { grid-area: nudge; }
+.home-grid__nba { grid-area: nba; }
+.home-grid__upcoming { grid-area: upcoming; }
+.home-grid__calendar { grid-area: calendar; }
+.home-grid__stats { grid-area: stats; }
+.home-grid__quickwins { grid-area: quickwins; }
+.home-grid__quote { grid-area: quote; }
+.home-grid__taskgroups { grid-area: taskgroups; }
+.home-grid__habits { grid-area: habits; }
+.home-grid__momentum { grid-area: momentum; }

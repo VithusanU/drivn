@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { saveAccount } from '@/lib/savedAccounts'
 import type { UserStore, UserProfile, UserStreak } from '@/types'
 
-const ADMIN_EMAIL = 'vithusan.business@gmail.com'
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'vithusan.business@gmail.com'
 const BETA_MODE_KEY = 'drivn:betaMode'
 
 export const useUserStore = create<UserStore>((set, get) => ({

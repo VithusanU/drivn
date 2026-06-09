@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useHabitStore } from '@/stores/habitStore'
 import HabitDetailSheet from '@/components/habits/HabitDetailSheet'
@@ -145,9 +146,20 @@ export default function HabitStrip() {
 
   if (all.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        No habits yet. Add some in the Habits tab.
-      </p>
+      <Link
+        href="/habits"
+        className={cn(
+          'flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-dashed',
+          'border-border/40 text-muted-foreground/40 hover:border-primary/30 hover:text-primary/50',
+          'transition-colors'
+        )}
+      >
+        <span className="text-xl">💪</span>
+        <div>
+          <p className="text-[13px] font-medium">No habits yet</p>
+          <p className="text-[11px] mt-0.5">Tap to add your first habit</p>
+        </div>
+      </Link>
     )
   }
 

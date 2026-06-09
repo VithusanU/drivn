@@ -2,10 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Check, Link2, Flame } from 'lucide-react'
+import { X, Check, Link2, Repeat, Bell, BellOff, Flame } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { cn } from '@/lib/utils'
-import type { Task, TaskUrgency } from '@/types'
+import type { Task, TaskUrgency, TaskRecurrence, TaskCategory } from '@/types'
+import { TASK_CATEGORIES } from '@/types'
+
+const RECURRENCE_OPTIONS: { value: TaskRecurrence; label: string }[] = [
+  { value: 'none', label: 'No repeat' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+]
 
 const URGENCY_OPTIONS: { value: TaskUrgency; label: string }[] = [
   { value: 'high', label: 'High' },
@@ -77,11 +85,15 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
   const tasks = useTaskStore((s) => s.tasks)
 
   const [title, setTitle] = useState(task.title)
+  const [description, setDescription] = useState<string>(task.description ?? '')
   const [urgency, setUrgency] = useState<TaskUrgency>(task.urgency)
   const [dueDate, setDueDate] = useState<string>(task.due_date ?? '')
   const [dueTime, setDueTime] = useState<string>(task.due_time ?? '')
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(task.estimated_minutes ?? null)
   const [blockedBy, setBlockedBy] = useState<string | null>(task.blocked_by ?? null)
+  const [recurrence, setRecurrence] = useState<TaskRecurrence>((task.recurrence as TaskRecurrence) ?? 'none')
+  const [category, setCategory] = useState<TaskCategory>((task.category as TaskCategory) ?? 'other')
+  const [alarmEnabled, setAlarmEnabled] = useState<boolean>(task.alarm_enabled ?? false)
   const [isHardDeadline, setIsHardDeadline] = useState<boolean>(task.is_hard_deadline ?? false)
   const [saving, setSaving] = useState(false)
 
@@ -89,11 +101,15 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
   useEffect(() => {
     if (open) {
       setTitle(task.title)
+      setDescription(task.description ?? '')
       setUrgency(task.urgency)
       setDueDate(task.due_date ?? '')
       setDueTime(task.due_time ?? '')
       setEstimatedMinutes(task.estimated_minutes ?? null)
       setBlockedBy(task.blocked_by ?? null)
+      setRecurrence((task.recurrence as TaskRecurrence) ?? 'none')
+      setCategory((task.category as TaskCategory) ?? 'other')
+      setAlarmEnabled(task.alarm_enabled ?? false)
       setIsHardDeadline(task.is_hard_deadline ?? false)
     }
   }, [open])
@@ -107,11 +123,15 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
     setSaving(true)
     await updateTask(task.id, {
       title: title.trim(),
+      description: description.trim() || null,
       urgency,
       due_date: dueDate || null,
       due_time: dueTime || null,
       estimated_minutes: estimatedMinutes,
       blocked_by: blockedBy,
+      recurrence,
+      category,
+      alarm_enabled: dueDate && dueTime ? alarmEnabled : false,
       is_hard_deadline: dueDate ? isHardDeadline : false,
     })
     setSaving(false)
@@ -131,16 +151,31 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
             onClick={onClose}
           />
 
-          {/* Sheet */}
+          {/* Sheet
+              IMPORTANT: bounded by `max-h-[90dvh] flex flex-col` with a scrollable
+              middle section and a `flex-shrink-0` footer — NOT a flat `p-5 space-y-5`
+              column. A long form (title, notes, urgency, dates, alarm, estimate,
+              category, recurrence, dependencies…) can easily exceed the visible
+              viewport on small phones; without this scaffolding the bottom of the
+              sheet — including the primary "Save changes" button — renders below
+              the fold and becomes unreachable. `dvh` (dynamic viewport height,
+              not `vh`) accounts for mobile browser chrome (address bar) so the
+              sheet's max-height matches what's ACTUALLY visible, not the largest
+              possible viewport. Mirrors AddEventSheet.tsx's working pattern. */}
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl bg-card border-t border-border p-5 space-y-5"
+            className={cn(
+              'fixed bottom-0 left-0 right-0 z-50',
+              'max-h-[90dvh] flex flex-col',
+              'bg-card rounded-t-2xl border-t border-border',
+              'shadow-[0_-8px_40px_rgba(0,0,0,0.3)]'
+            )}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between">
+            {/* Header — pinned, never scrolls */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-2 flex-shrink-0">
               <p className="text-[10px] font-medium tracking-[0.15em] uppercase text-muted-foreground/60">
                 Edit task
               </p>
@@ -148,6 +183,9 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Scrollable form body — everything between header and footer */}
+            <div className="flex-1 overflow-y-auto px-5 py-3 space-y-5">
 
             {/* Title */}
             <input
@@ -159,6 +197,22 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
                 'focus:border-primary/40 transition-colors'
               )}
             />
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground/60">Notes (optional)</p>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Add more detail…"
+                rows={2}
+                className={cn(
+                  'w-full bg-background border border-border rounded-xl px-3 py-2.5 resize-none',
+                  'text-[13px] text-foreground/70 outline-none placeholder:text-muted-foreground/30',
+                  'focus:border-primary/40 transition-colors'
+                )}
+              />
+            </div>
 
             {/* Urgency */}
             <div className="space-y-2">
@@ -274,6 +328,33 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
                     '[color-scheme:dark]'
                   )}
                 />
+
+                {/* Alarm toggle — only meaningful once both a date and time are set.
+                    Mirrors the On/Off row pattern used for Notifications in Profile. */}
+                {dueTime && (
+                  <button
+                    onClick={() => setAlarmEnabled((v) => !v)}
+                    className={cn(
+                      'w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all',
+                      alarmEnabled
+                        ? 'bg-primary/10 border-primary/40'
+                        : 'border-border/50 hover:border-primary/30'
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      {alarmEnabled
+                        ? <Bell className="w-3.5 h-3.5 text-primary" />
+                        : <BellOff className="w-3.5 h-3.5 text-muted-foreground/50" />
+                      }
+                      <span className={cn('text-[12px] font-medium', alarmEnabled ? 'text-primary' : 'text-muted-foreground/60')}>
+                        Alert me at this time
+                      </span>
+                    </div>
+                    <span className={cn('text-[11px] font-medium', alarmEnabled ? 'text-primary' : 'text-muted-foreground/40')}>
+                      {alarmEnabled ? 'On' : 'Off'}
+                    </span>
+                  </button>
+                )}
               </div>
             )}
 
@@ -323,6 +404,53 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
               )}
             </div>
 
+            {/* Category */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground/60">
+                Category
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                {TASK_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.value}
+                    onClick={() => setCategory(cat.value)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-medium transition-all',
+                      category === cat.value
+                        ? 'bg-primary/10 border-primary/40 text-primary'
+                        : 'border-border/50 text-muted-foreground/50 hover:border-primary/30 hover:text-primary/60'
+                    )}
+                  >
+                    <span>{cat.emoji}</span>
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Recurrence */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground/60">
+                <Repeat className="w-3 h-3 inline mr-1" />Repeat
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                {RECURRENCE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setRecurrence(opt.value)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-full border text-[12px] font-medium transition-all',
+                      recurrence === opt.value
+                        ? 'bg-primary/10 border-primary/40 text-primary'
+                        : 'border-border/50 text-muted-foreground/50 hover:border-primary/30 hover:text-primary/60'
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Depends on */}
             {tasks.filter((t) => t.status === 'active' && t.id !== task.id).length > 0 && (
               <div className="space-y-2">
@@ -365,20 +493,27 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
               </div>
             )}
 
-            {/* Save */}
-            <button
-              onClick={handleSave}
-              disabled={saving || !title.trim()}
-              className={cn(
-                'w-full flex items-center justify-center gap-2 py-3.5 rounded-xl',
-                'bg-primary text-primary-foreground text-[15px] font-medium',
-                'transition-all active:scale-[0.98] hover:bg-primary/90',
-                'disabled:opacity-50'
-              )}
-            >
-              <Check className="w-4 h-4" />
-              {saving ? 'Saving…' : 'Save changes'}
-            </button>
+            </div>
+            {/* end scrollable form body */}
+
+            {/* Footer — pinned, always visible regardless of form length.
+                `pb-safe` adds env(safe-area-inset-bottom) padding so the button
+                isn't covered by the home-indicator gesture bar on notched iPhones. */}
+            <div className="px-5 pt-4 pb-safe flex-shrink-0 border-t border-border/50">
+              <button
+                onClick={handleSave}
+                disabled={saving || !title.trim()}
+                className={cn(
+                  'w-full flex items-center justify-center gap-2 py-3.5 rounded-xl',
+                  'bg-primary text-primary-foreground text-[15px] font-medium',
+                  'transition-all active:scale-[0.98] hover:bg-primary/90',
+                  'disabled:opacity-50'
+                )}
+              >
+                <Check className="w-4 h-4" />
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
           </motion.div>
         </>
       )}

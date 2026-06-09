@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Zap, SkipForward, Trash2, Coffee, ArrowRight, Sparkles, RefreshCw } from 'lucide-react'
@@ -8,6 +8,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
 import { useAIStore } from '@/stores/aiStore'
 import { useTimerStore } from '@/stores/timerStore'
+import { useSessionStore } from '@/stores/sessionStore'
 import { getReasonLabel, formatEstimatedTime, getRecommendedTask } from '@/lib/engine/recommendation'
 import { formatDueDate, cn } from '@/lib/utils'
 import type { RecommendationReason } from '@/types'
@@ -29,14 +30,20 @@ function formatTime(seconds: number): string {
 export default function NextBestAction() {
   const deleteTask = useTaskStore((s) => s.deleteTask)
   const tasks = useTaskStore((s) => s.tasks)
-  const [skippedIds, setSkippedIds] = useState<string[]>([])
+  const skippedIds = useSessionStore((s) => s.skippedTaskIds)
+  const skipTask = useSessionStore((s) => s.skipTask)
   const router = useRouter()
 
   const betaModeEnabled = useUserStore((s) => s.betaModeEnabled)
   const profile = useUserStore((s) => s.profile)
   const hasBetaAccess = profile?.beta_access === true
   const hasOwnKey = !!profile?.anthropic_key_masked
-  const canUseAI = hasBetaAccess || hasOwnKey
+  // New accounts get a 7-day free trial of AI mode
+  const AI_TRIAL_DAYS = 7
+  const isInTrial = profile?.created_at
+    ? (Date.now() - new Date(profile.created_at).getTime()) < AI_TRIAL_DAYS * 24 * 60 * 60 * 1000
+    : false
+  const canUseAI = hasBetaAccess || hasOwnKey || isInTrial
 
   const aiRecommendation = useAIStore((s) => s.recommendation)
   const aiFetching = useAIStore((s) => s.fetching)
@@ -50,6 +57,11 @@ export default function NextBestAction() {
   const timerTimeUp = useTimerStore((s) => s.timeUp)
   const breakActive = useTimerStore((s) => s.breakActive)
   const breakSecondsLeft = useTimerStore((s) => s.breakSecondsLeft)
+  const hasFetched = useTaskStore((s) => s.hasFetched)
+
+  // If tasks have loaded and the timer task no longer exists, it was completed/deleted.
+  // Don't show a broken Resume card — offer to clear the stale timer instead.
+  const timerTaskExists = !timerTaskId || !hasFetched || tasks.some((t) => t.id === timerTaskId)
 
   const isAIMode = betaModeEnabled && canUseAI
 
@@ -61,7 +73,37 @@ export default function NextBestAction() {
     }
     const filtered = tasks.filter((t) => !skippedIds.includes(t.id))
     fetchAIRecommendation(filtered)
-  }, [isAIMode, tasks.length, skippedIds.length])
+  }, [isAIMode, tasks.length, skippedIds.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Stale timer card (task was completed/deleted but timer persisted) ────────
+  if (timerTaskId && hasFetched && !timerTaskExists) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={cn(
+          'rounded-2xl overflow-hidden',
+          'bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460]',
+          'border border-primary/20 p-5'
+        )}
+      >
+        <p className="text-[10px] font-medium tracking-[0.15em] uppercase text-primary/60 mb-2">
+          Timer
+        </p>
+        <h2 className="text-xl font-medium text-white leading-snug mb-1">{timerTaskTitle}</h2>
+        <p className="text-[12px] text-white/40 mb-4">This task was already completed.</p>
+        <button
+          onClick={() => useTimerStore.getState().clearTimer()}
+          className={cn(
+            'flex items-center justify-center gap-2 w-full py-3 rounded-xl text-[14px] font-medium',
+            'bg-white/10 border border-white/15 text-white/70 transition-all hover:bg-white/15'
+          )}
+        >
+          Dismiss timer
+        </button>
+      </motion.div>
+    )
+  }
 
   // ── Active timer card ───────────────────────────────────────────────────────
   if (timerTaskId) {
@@ -188,8 +230,10 @@ export default function NextBestAction() {
         className="rounded-2xl border border-border bg-card p-5 text-center"
       >
         <div className="text-2xl mb-2">✨</div>
-        <p className="text-sm font-medium text-foreground">All clear.</p>
-        <p className="text-xs text-muted-foreground mt-1">Add a task to get started.</p>
+        <p className="text-sm font-medium text-foreground">You&apos;re all clear.</p>
+        <p className="text-xs text-muted-foreground mt-1 max-w-[200px] mx-auto leading-relaxed">
+          Nothing left to do. Use the + button below to capture your next task.
+        </p>
       </motion.div>
     )
   }
@@ -279,7 +323,7 @@ export default function NextBestAction() {
             Start now
           </button>
           <button
-            onClick={() => setSkippedIds((prev) => [...prev, task!.id])}
+            onClick={() => skipTask(task!.id)}
             className={cn(
               'flex items-center gap-1.5 px-4 py-3 rounded-xl',
               'bg-white/5 border border-white/8 text-white/40 text-sm',

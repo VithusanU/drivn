@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap, Key, X, Camera, Link2, Loader2 } from 'lucide-react'
+import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap, Key, X, Camera, Link2, Loader2, Info, CalendarDays, Copy } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/stores/userStore'
 import { cn } from '@/lib/utils'
+import { APP_VERSION } from '@/lib/version'
+import ChangelogSheet from '@/components/ui/ChangelogSheet'
 import {
   subscribeToPush, unsubscribeFromPush, isSubscribed,
   saveReminderTime, getReminderTime,
@@ -28,10 +30,16 @@ export default function ProfilePage() {
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [notifEnabled, setNotifEnabled] = useState(false)
+  const [notifError, setNotifError] = useState<string | null>(null)
+  const [notifBusy, setNotifBusy] = useState(false)
   const [reminderTime, setReminderTime] = useState('')
   const [showTimePicker, setShowTimePicker] = useState(false)
   const [savingTime, setSavingTime] = useState(false)
   const [openGuide, setOpenGuide] = useState<string | null>(null)
+  const [showChangelog, setShowChangelog] = useState(false)
+  const [calUrl, setCalUrl] = useState<string | null>(null)
+  const [calLoading, setCalLoading] = useState(false)
+  const [calCopied, setCalCopied] = useState(false)
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([])
 
   // Beta access state
@@ -41,7 +49,12 @@ export default function ProfilePage() {
 
   const hasBetaAccess = profile?.beta_access === true
   const hasOwnKey = !!profile?.anthropic_key_masked
-  const canUseAI = hasBetaAccess || hasOwnKey
+  const AI_TRIAL_DAYS = 7
+  const trialDaysLeft = profile?.created_at
+    ? Math.max(0, AI_TRIAL_DAYS - Math.floor((Date.now() - new Date(profile.created_at).getTime()) / 86400000))
+    : 0
+  const isInTrial = trialDaysLeft > 0
+  const canUseAI = hasBetaAccess || hasOwnKey || isInTrial
 
   // BYOK state
   const [keyInput, setKeyInput] = useState('')
@@ -188,12 +201,31 @@ export default function ProfilePage() {
   }
 
   const handleToggleNotifications = async () => {
-    if (notifEnabled) {
-      await unsubscribeFromPush()
-      setNotifEnabled(false)
-    } else {
-      const ok = await subscribeToPush()
-      setNotifEnabled(ok)
+    if (notifBusy) return
+    setNotifBusy(true)
+    setNotifError(null)
+    try {
+      if (notifEnabled) {
+        await unsubscribeFromPush()
+        setNotifEnabled(false)
+      } else {
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'denied') {
+          setNotifError(
+            'Notifications are blocked for this browser/app. Enable them in your device/browser settings, then try again.'
+          )
+          setNotifEnabled(false)
+          return
+        }
+        const ok = await subscribeToPush()
+        setNotifEnabled(ok)
+        if (!ok) {
+          setNotifError(
+            "Couldn't turn on notifications. Make sure you opened Drivn from the home-screen icon (iPhone) and allowed the permission prompt, then try again."
+          )
+        }
+      }
+    } finally {
+      setNotifBusy(false)
     }
   }
 
@@ -264,7 +296,8 @@ export default function ProfilePage() {
         {/* Notifications toggle */}
         <button
           onClick={handleToggleNotifications}
-          className="w-full flex items-center justify-between px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors border-b border-border/50"
+          disabled={notifBusy}
+          className="w-full flex items-center justify-between px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors border-b border-border/50 disabled:opacity-60"
         >
           <div className="flex items-center gap-3">
             {notifEnabled
@@ -274,9 +307,14 @@ export default function ProfilePage() {
             <span>Notifications</span>
           </div>
           <span className={cn('text-xs', notifEnabled ? 'text-primary' : 'text-muted-foreground/50')}>
-            {notifEnabled ? 'On' : 'Off'}
+            {notifBusy ? '…' : notifEnabled ? 'On' : 'Off'}
           </span>
         </button>
+        {notifError && (
+          <p className="px-4 py-2.5 text-[12px] text-destructive/80 bg-destructive/5 border-b border-border/50">
+            {notifError}
+          </p>
+        )}
 
         {/* Daily reminder */}
         <div className="border-b border-border/50">
@@ -380,7 +418,10 @@ export default function ProfilePage() {
               <div className="text-left">
                 <p className="text-sm text-foreground/80">AI mode</p>
                 <p className="text-[11px] text-muted-foreground/50 mt-0.5">
-                  {hasOwnKey ? 'Using your own API key' : 'AI-powered recommendations'}
+                  {hasOwnKey ? 'Using your own API key'
+                    : hasBetaAccess ? 'AI-powered recommendations'
+                    : isInTrial ? `Free trial · ${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''} left`
+                    : 'AI-powered recommendations'}
                 </p>
               </div>
             </div>
@@ -412,7 +453,7 @@ export default function ProfilePage() {
           <div className="px-4 py-3.5">
             <div className="flex items-start gap-3">
               <Sparkles className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="text-sm text-foreground/80">AI mode</p>
                 <p className="text-[11px] text-muted-foreground/50 mt-0.5 mb-3">
                   Get AI-powered recommendations. Request free access or use your own key below.
@@ -441,7 +482,7 @@ export default function ProfilePage() {
         <div className="px-4 py-3.5">
           <div className="flex items-start gap-3">
             <Key className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <p className="text-sm text-foreground/80">Your API key</p>
               {hasOwnKey ? (
                 /* Key is saved — show masked + remove */
@@ -634,6 +675,97 @@ export default function ProfilePage() {
         ))}
       </div>
 
+      {/* Calendar sync */}
+      <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3 mt-8">
+        Calendar
+      </p>
+      <div className="rounded-2xl border border-border overflow-hidden">
+        <div className="px-4 py-3.5">
+          <div className="flex items-start gap-3">
+            <CalendarDays className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-foreground/80">Sync to your calendar</p>
+              <p className="text-[11px] text-muted-foreground/50 mt-0.5 mb-3">
+                Subscribe to a live feed — your events appear in iOS Calendar, Google Calendar, or Outlook and stay in sync automatically.
+              </p>
+
+              {calUrl ? (
+                <div className="space-y-2">
+                  <div className={cn(
+                    'flex items-center gap-2 px-3 py-2 rounded-xl border border-border/50',
+                    'bg-secondary/50'
+                  )}>
+                    <p className="text-[11px] font-mono text-muted-foreground/70 flex-1 min-w-0 truncate">{calUrl}</p>
+                    <button
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(calUrl)
+                        setCalCopied(true)
+                        setTimeout(() => setCalCopied(false), 2000)
+                      }}
+                      className="flex-shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/10 text-[11px] text-primary/80 hover:text-primary transition-colors"
+                    >
+                      {calCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                      {calCopied ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                  <div className="space-y-2 text-[11px] text-muted-foreground/50">
+                    <div className="flex gap-2">
+                      <span className="flex-shrink-0">📱</span>
+                      <p className="break-words"><strong>iPhone:</strong> Calendar app → Accounts → Add Account → Other → Add Subscribed Calendar → paste URL</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="flex-shrink-0">🗓</span>
+                      <p className="break-words"><strong>Google:</strong> calendar.google.com → Other calendars → From URL → paste URL</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={async () => {
+                    setCalLoading(true)
+                    try {
+                      const res = await fetch('/api/calendar/token')
+                      const data = await res.json()
+                      if (data.url) setCalUrl(data.url)
+                    } finally {
+                      setCalLoading(false)
+                    }
+                  }}
+                  disabled={calLoading}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-medium',
+                    'bg-primary/10 border border-primary/30 text-primary',
+                    'hover:bg-primary/15 transition-colors disabled:opacity-50'
+                  )}
+                >
+                  <CalendarDays className="w-3 h-3" />
+                  {calLoading ? 'Generating…' : 'Get subscription link'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Version */}
+      <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3 mt-8">
+        App
+      </p>
+      <div className="rounded-2xl border border-border overflow-hidden">
+        <button
+          onClick={() => setShowChangelog(true)}
+          className="w-full flex items-center justify-between px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <Info className="w-4 h-4 text-muted-foreground" />
+            <span>What&apos;s new</span>
+          </div>
+          <span className="text-muted-foreground/50 text-xs">v{APP_VERSION}</span>
+        </button>
+      </div>
+
+      <ChangelogSheet open={showChangelog} onClose={() => setShowChangelog(false)} />
+
       {/* ── Inline account switcher sheet ── */}
       <AnimatePresence>
         {switchSheet !== null && (
@@ -657,7 +789,11 @@ export default function ProfilePage() {
                 'fixed bottom-0 left-0 right-0 z-50',
                 'bg-card rounded-t-3xl border-t border-border',
                 'shadow-[0_-8px_40px_rgba(0,0,0,0.3)]',
-                'px-5 pb-8 pt-4'
+                // Base 2rem bottom padding (unchanged) plus the home-indicator
+                // safe-area inset on top, so the Sign-in/Cancel buttons clear
+                // the gesture bar on notched iPhones without losing the
+                // breathing room this sheet already had on other devices.
+                'px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-4'
               )}
             >
               {/* Handle */}

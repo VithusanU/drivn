@@ -3,10 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { decrypt } from '@/lib/encryption'
 import type { Task } from '@/types'
 
-const ADMIN_EMAIL = 'vithusan.business@gmail.com'
-
-// ── In-memory cache: userId → { json, expiresAt } ────────────────────────────
-const cache = new Map<string, { json: string; expiresAt: number }>()
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'vithusan.business@gmail.com'
 
 export async function POST(req: Request) {
   // ── Auth ────────────────────────────────────────────────────────────────────
@@ -43,10 +40,15 @@ export async function POST(req: Request) {
   // ── Parse body ──────────────────────────────────────────────────────────────
   const { tasks, force } = (await req.json()) as { tasks: Task[]; force?: boolean }
 
-  // ── Cache hit ───────────────────────────────────────────────────────────────
+  // ── Supabase cache check (replaces broken in-memory Map) ───────────────────
   if (!force) {
-    const cached = cache.get(user.id)
-    if (cached && cached.expiresAt > Date.now()) {
+    const { data: cached } = await supabase
+      .from('ai_recommendation_cache')
+      .select('json, expires_at')
+      .eq('user_id', user.id)
+      .single()
+
+    if (cached && new Date(cached.expires_at) > new Date()) {
       return new Response(cached.json, {
         headers: { 'Content-Type': 'application/json' },
       })
@@ -136,9 +138,15 @@ What should I do right now?`
     result = { taskId: null, reason: '', quickWinIds: [] }
   }
 
-  // ── Cache for 60 seconds ───────────────────────────────────────────────────
+  // ── Cache in Supabase for 60 seconds ────────────────────────────────────────
   const json = JSON.stringify(result)
-  cache.set(user.id, { json, expiresAt: Date.now() + 60_000 })
+  const expiresAt = new Date(Date.now() + 60_000).toISOString()
+  await supabase
+    .from('ai_recommendation_cache')
+    .upsert(
+      { user_id: user.id, json, expires_at: expiresAt, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    )
 
   return new Response(json, { headers: { 'Content-Type': 'application/json' } })
 }

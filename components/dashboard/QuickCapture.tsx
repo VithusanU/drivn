@@ -2,12 +2,15 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff, Link2, Camera, Flame } from 'lucide-react'
+import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff, Link2, Camera, LayoutTemplate, CalendarPlus, Bell, BellOff, Flame } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { cn } from '@/lib/utils'
 import { parseVoiceInput, isSpeechRecognitionSupported } from '@/lib/voiceParser'
 import TaskScanner, { type TaskScannerRef } from './TaskScanner'
-import type { TaskUrgency } from '@/types'
+import TaskTemplates from './TaskTemplates'
+import AddEventSheet from '@/components/events/AddEventSheet'
+import { TASK_CATEGORIES } from '@/types'
+import type { TaskUrgency, TaskCategory } from '@/types'
 
 const URGENCY_OPTIONS: { value: TaskUrgency; label: string }[] = [
   { value: 'high', label: 'High' },
@@ -40,20 +43,24 @@ function formatTime(minutes: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
 
+// Local calendar date as "YYYY-MM-DD" — NOT toISOString() (that's UTC and rolls over
+// to the next day in the evening for anyone west of UTC, e.g. after 8pm EDT/4pm PDT,
+// silently storing "tomorrow" as "today"). Mirrors localDateStr() in TaskEditSheet.
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 const DATE_PRESETS = [
   {
     label: 'Today',
-    value: () => {
-      const d = new Date()
-      return d.toISOString().split('T')[0]
-    },
+    value: () => localDateStr(new Date()),
   },
   {
     label: 'Tomorrow',
     value: () => {
       const d = new Date()
       d.setDate(d.getDate() + 1)
-      return d.toISOString().split('T')[0]
+      return localDateStr(d)
     },
   },
   {
@@ -63,7 +70,7 @@ const DATE_PRESETS = [
       const day = d.getDay()
       const diff = 7 - (day === 0 ? 7 : day)
       d.setDate(d.getDate() + diff)
-      return d.toISOString().split('T')[0]
+      return localDateStr(d)
     },
   },
 ]
@@ -74,11 +81,16 @@ export default function QuickCapture() {
   const [value, setValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [showError, setShowError] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [showAddEvent, setShowAddEvent] = useState(false)
 
   const [urgency, setUrgency] = useState<TaskUrgency>('medium')
+  const [category, setCategory] = useState<TaskCategory | null>(null)
   const [dueDate, setDueDate] = useState<string>('')
   const [dueTime, setDueTime] = useState<string>('')
+  const [alarmEnabled, setAlarmEnabled] = useState(false)
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null)
   const [blockedBy, setBlockedBy] = useState<string | null>(null)
   const [isHardDeadline, setIsHardDeadline] = useState<boolean>(false)
@@ -99,8 +111,10 @@ export default function QuickCapture() {
 
   const resetOptions = () => {
     setUrgency('medium')
+    setCategory(null)
     setDueDate('')
     setDueTime('')
+    setAlarmEnabled(false)
     setEstimatedMinutes(null)
     setBlockedBy(null)
     setIsHardDeadline(false)
@@ -111,22 +125,30 @@ export default function QuickCapture() {
     if (!trimmed || saving) return
 
     setSaving(true)
-    await createTask({
+    const result = await createTask({
       title: trimmed,
       urgency,
+      category,
       due_date: dueDate || null,
       due_time: dueTime || null,
+      alarm_enabled: dueDate && dueTime ? alarmEnabled : false,
       estimated_minutes: estimatedMinutes,
       blocked_by: blockedBy,
       is_hard_deadline: dueDate ? isHardDeadline : false,
     })
-    setValue('')
-    resetOptions()
-    setExpanded(false)
     setSaving(false)
-    setShowSuccess(true)
-    setTimeout(() => setShowSuccess(false), 1500)
-    inputRef.current?.focus()
+
+    if (result) {
+      setValue('')
+      resetOptions()
+      setExpanded(false)
+      setShowSuccess(true)
+      setTimeout(() => setShowSuccess(false), 1500)
+      inputRef.current?.focus()
+    } else {
+      setShowError(true)
+      setTimeout(() => setShowError(false), 2500)
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -218,6 +240,8 @@ export default function QuickCapture() {
   return (
     <>
     <TaskScanner scannerRef={scannerRef} />
+    <TaskTemplates open={showTemplates} onClose={() => setShowTemplates(false)} />
+    <AddEventSheet key={showAddEvent ? 'open' : 'closed'} open={showAddEvent} onClose={() => setShowAddEvent(false)} />
     <div className={cn(
       'fixed z-20 pb-3',
       'bottom-[60px] left-0 right-0',
@@ -239,6 +263,19 @@ export default function QuickCapture() {
               'shadow-[0_-4px_24px_rgba(0,0,0,0.1)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.35)]'
             )}>
 
+              {/* Templates shortcut */}
+              <button
+                onClick={() => setShowTemplates(true)}
+                className={cn(
+                  'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left',
+                  'border-border/50 text-muted-foreground/50 text-[12px]',
+                  'hover:border-primary/30 hover:text-primary/70 transition-colors'
+                )}
+              >
+                <LayoutTemplate className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Use a template</span>
+              </button>
+
               {/* Urgency */}
               <div className="space-y-2">
                 <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground/60">
@@ -257,6 +294,30 @@ export default function QuickCapture() {
                       )}
                     >
                       {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Category */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground/60">
+                  Category
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {TASK_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.value}
+                      onClick={() => setCategory(category === cat.value ? null : cat.value)}
+                      className={cn(
+                        'flex items-center gap-1 px-3 py-1.5 rounded-full border text-[12px] font-medium transition-all',
+                        category === cat.value
+                          ? 'bg-primary/10 border-primary/40 text-primary'
+                          : 'border-border/50 text-muted-foreground/50 hover:border-primary/30 hover:text-primary/60'
+                      )}
+                    >
+                      <span>{cat.emoji}</span>
+                      {cat.label}
                     </button>
                   ))}
                 </div>
@@ -363,6 +424,33 @@ export default function QuickCapture() {
                       '[color-scheme:dark]'
                     )}
                   />
+
+                  {/* Alarm toggle — only meaningful once both a date and time are set.
+                      Mirrors the On/Off row pattern used for Notifications in Profile. */}
+                  {dueTime && (
+                    <button
+                      onClick={() => setAlarmEnabled((v) => !v)}
+                      className={cn(
+                        'w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all',
+                        alarmEnabled
+                          ? 'bg-primary/10 border-primary/40'
+                          : 'border-border/50 hover:border-primary/30'
+                      )}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        {alarmEnabled
+                          ? <Bell className="w-3.5 h-3.5 text-primary" />
+                          : <BellOff className="w-3.5 h-3.5 text-muted-foreground/50" />
+                        }
+                        <span className={cn('text-[12px] font-medium', alarmEnabled ? 'text-primary' : 'text-muted-foreground/60')}>
+                          Alert me at this time
+                        </span>
+                      </div>
+                      <span className={cn('text-[11px] font-medium', alarmEnabled ? 'text-primary' : 'text-muted-foreground/40')}>
+                        {alarmEnabled ? 'On' : 'Off'}
+                      </span>
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -506,6 +594,15 @@ export default function QuickCapture() {
           )}
         />
 
+        {/* Calendar / add event button */}
+        <button
+          onClick={() => setShowAddEvent(true)}
+          aria-label="Add event"
+          className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all text-muted-foreground/30 hover:text-muted-foreground/60"
+        >
+          <CalendarPlus className="w-3.5 h-3.5" />
+        </button>
+
         {/* Camera / scan button */}
         <button
           onClick={() => scannerRef.current?.open()}
@@ -592,6 +689,18 @@ export default function QuickCapture() {
               className="text-[12px] text-drivn-green/70 flex-shrink-0"
             >
               Added ✓
+            </motion.span>
+          )}
+
+          {showError && (
+            <motion.span
+              key="error"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="text-[12px] text-destructive/70 flex-shrink-0"
+            >
+              Failed ✕
             </motion.span>
           )}
         </AnimatePresence>
