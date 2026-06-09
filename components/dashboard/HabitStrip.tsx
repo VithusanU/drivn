@@ -66,7 +66,7 @@ function HabitRow({ habits, onTap }: HabitRowProps) {
   return (
     // Negative margin breaks out of the parent px-4 so the scroll goes edge-to-edge
     <div className="relative -mx-4">
-      <div className="flex gap-2.5 overflow-x-auto no-scrollbar scroll-momentum px-4 pb-1">
+      <div className="flex gap-2.5 overflow-x-auto no-scrollbar scroll-momentum px-4 pb-1 snap-x snap-mandatory scroll-pl-4">
         {habits.map((habit) => {
           const state = getHabitState(habit)
           const progress = habit.detail_type === 'amount' ? getAmountProgress(habit) : null
@@ -79,7 +79,7 @@ function HabitRow({ habits, onTap }: HabitRowProps) {
               onClick={() => onTap(habit)}
               className={cn(
                 'relative flex flex-col items-center gap-1.5 px-4 pt-3 pb-2 rounded-2xl',
-                'flex-shrink-0 min-w-[72px] border transition-all duration-150 overflow-hidden',
+                'flex-shrink-0 min-w-[80px] border transition-all duration-150 overflow-hidden snap-start',
                 STATE_CARD[state]
               )}
             >
