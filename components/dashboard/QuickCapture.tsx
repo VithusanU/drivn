@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff, Link2, Camera } from 'lucide-react'
+import { ArrowRight, Plus, SlidersHorizontal, X, Mic, MicOff, Link2, Camera, Flame } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { cn } from '@/lib/utils'
 import { parseVoiceInput, isSpeechRecognitionSupported } from '@/lib/voiceParser'
@@ -81,6 +81,7 @@ export default function QuickCapture() {
   const [dueTime, setDueTime] = useState<string>('')
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null)
   const [blockedBy, setBlockedBy] = useState<string | null>(null)
+  const [isHardDeadline, setIsHardDeadline] = useState<boolean>(false)
 
   const [voiceState, setVoiceState] = useState<VoiceState>('idle')
   const [voiceSupported, setVoiceSupported] = useState(false)
@@ -102,6 +103,7 @@ export default function QuickCapture() {
     setDueTime('')
     setEstimatedMinutes(null)
     setBlockedBy(null)
+    setIsHardDeadline(false)
   }
 
   const handleSubmit = async () => {
@@ -116,6 +118,7 @@ export default function QuickCapture() {
       due_time: dueTime || null,
       estimated_minutes: estimatedMinutes,
       blocked_by: blockedBy,
+      is_hard_deadline: dueDate ? isHardDeadline : false,
     })
     setValue('')
     resetOptions()
@@ -299,6 +302,37 @@ export default function QuickCapture() {
                   )}
                 />
               </div>
+
+              {/* Hard deadline toggle — only when a date is set */}
+              {dueDate && (
+                <button
+                  onClick={() => setIsHardDeadline((v) => !v)}
+                  className={cn(
+                    'w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-[12px] transition-all',
+                    isHardDeadline
+                      ? 'bg-red-500/8 border-red-500/25 text-red-400'
+                      : 'border-border/50 text-muted-foreground/50 hover:border-red-500/20 hover:text-red-400/50'
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Flame className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>Hard deadline</span>
+                    <span className={cn(
+                      'text-[10px]',
+                      isHardDeadline ? 'text-red-400/60' : 'text-muted-foreground/30'
+                    )}>must be done by this date</span>
+                  </div>
+                  <div className={cn(
+                    'relative w-8 h-4 rounded-full transition-colors flex-shrink-0',
+                    isHardDeadline ? 'bg-red-500' : 'bg-border'
+                  )}>
+                    <div className={cn(
+                      'absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform',
+                      isHardDeadline ? 'translate-x-[17px]' : 'translate-x-[1px]'
+                    )} />
+                  </div>
+                </button>
+              )}
 
               {/* Due time — only shown when a date is set */}
               {dueDate && (

@@ -75,6 +75,7 @@ export async function POST(req: Request) {
     due_time: t.due_time,
     estimated_minutes: t.estimated_minutes,
     blocked_by: t.blocked_by,
+    is_hard_deadline: t.is_hard_deadline,
     created_at: t.created_at,
   }))
 
@@ -83,7 +84,8 @@ Given a list of tasks, identify the single best one to work on RIGHT NOW plus up
 
 Hard rules:
 - NEVER recommend a task whose blocked_by field matches another task's id in the list
-- Overdue tasks with high urgency take top priority
+- Tasks with is_hard_deadline=true that are due today or overdue are the absolute top priority — they have no flexibility
+- Overdue tasks with high urgency take top priority after hard deadlines
 - Quick wins must have estimated_minutes <= 30, must not be blocked, and must not be the main recommendation
 
 Soft rules:

@@ -33,6 +33,7 @@ export interface Task {
   completed_at: string | null
   last_engaged_at: string | null
   blocked_by: string | null
+  is_hard_deadline: boolean
 }
 
 export interface CreateTaskInput {
@@ -43,6 +44,7 @@ export interface CreateTaskInput {
   due_time?: string | null
   estimated_minutes?: number | null
   blocked_by?: string | null
+  is_hard_deadline?: boolean
 }
 
 export interface UpdateTaskInput {
@@ -54,6 +56,7 @@ export interface UpdateTaskInput {
   estimated_minutes?: number | null
   status?: TaskStatus
   blocked_by?: string | null
+  is_hard_deadline?: boolean
 }
 
 // Derived — computed client-side

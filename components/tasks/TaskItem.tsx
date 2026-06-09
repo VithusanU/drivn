@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Circle, CheckCircle2, Trash2, Lock } from 'lucide-react'
+import { Circle, CheckCircle2, Trash2, Lock, Flame } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
 import { useUndoStore } from '@/stores/undoStore'
@@ -97,9 +97,12 @@ export default function TaskItem({ task }: TaskItemProps) {
           </p>
         ) : task.due_date ? (
           <p className={cn(
-            'text-[11px] mt-0.5',
+            'text-[11px] mt-0.5 flex items-center gap-1',
             isDueDateOverdue ? 'text-destructive/70' : 'text-muted-foreground/50'
           )}>
+            {task.is_hard_deadline && (
+              <Flame className="w-2.5 h-2.5 text-red-400/70 flex-shrink-0" />
+            )}
             {formatDueDate(task.due_date, task.due_time)}
           </p>
         ) : null}

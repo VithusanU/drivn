@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Check, Link2 } from 'lucide-react'
+import { X, Check, Link2, Flame } from 'lucide-react'
 import { useTaskStore } from '@/stores/taskStore'
 import { cn } from '@/lib/utils'
 import type { Task, TaskUrgency } from '@/types'
@@ -82,6 +82,7 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
   const [dueTime, setDueTime] = useState<string>(task.due_time ?? '')
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(task.estimated_minutes ?? null)
   const [blockedBy, setBlockedBy] = useState<string | null>(task.blocked_by ?? null)
+  const [isHardDeadline, setIsHardDeadline] = useState<boolean>(task.is_hard_deadline ?? false)
   const [saving, setSaving] = useState(false)
 
   // Re-sync state from the latest task data every time the sheet opens
@@ -93,6 +94,7 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
       setDueTime(task.due_time ?? '')
       setEstimatedMinutes(task.estimated_minutes ?? null)
       setBlockedBy(task.blocked_by ?? null)
+      setIsHardDeadline(task.is_hard_deadline ?? false)
     }
   }, [open])
 
@@ -110,6 +112,7 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
       due_time: dueTime || null,
       estimated_minutes: estimatedMinutes,
       blocked_by: blockedBy,
+      is_hard_deadline: dueDate ? isHardDeadline : false,
     })
     setSaving(false)
     onClose()
@@ -212,6 +215,37 @@ export default function TaskEditSheet({ task, open, onClose }: TaskEditSheetProp
                 )}
               />
             </div>
+
+            {/* Hard deadline toggle — only shown when a date is set */}
+            {dueDate && (
+              <button
+                onClick={() => setIsHardDeadline((v) => !v)}
+                className={cn(
+                  'w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-[12px] transition-all',
+                  isHardDeadline
+                    ? 'bg-red-500/8 border-red-500/25 text-red-400'
+                    : 'border-border/50 text-muted-foreground/50 hover:border-red-500/20 hover:text-red-400/50'
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <Flame className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>Hard deadline</span>
+                  <span className={cn(
+                    'text-[10px]',
+                    isHardDeadline ? 'text-red-400/60' : 'text-muted-foreground/30'
+                  )}>must be done by this date</span>
+                </div>
+                <div className={cn(
+                  'relative w-8 h-4 rounded-full transition-colors flex-shrink-0',
+                  isHardDeadline ? 'bg-red-500' : 'bg-border'
+                )}>
+                  <div className={cn(
+                    'absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform',
+                    isHardDeadline ? 'translate-x-[17px]' : 'translate-x-[1px]'
+                  )} />
+                </div>
+              </button>
+            )}
 
             {/* Due time — only shown when a date is set */}
             {dueDate && (

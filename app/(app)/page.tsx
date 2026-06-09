@@ -11,6 +11,7 @@ import HabitStrip from '@/components/dashboard/HabitStrip'
 import MomentumCard from '@/components/dashboard/MomentumCard'
 import QuickCapture from '@/components/dashboard/QuickCapture'
 import QuickWins from '@/components/dashboard/QuickWins'
+import TodayFocus from '@/components/dashboard/TodayFocus'
 import MotivationalQuote from '@/components/dashboard/MotivationalQuote'
 
 export default function HomePage() {
@@ -33,6 +34,9 @@ export default function HomePage() {
       <div className="flex-1 px-4 pb-6 space-y-6 overflow-y-auto no-scrollbar scroll-momentum">
         {/* Core: Next Best Action */}
         <NextBestAction />
+
+        {/* Today's Focus — hard deadlines + tasks due today */}
+        <TodayFocus />
 
         {/* Quick wins strip */}
         <QuickWins />

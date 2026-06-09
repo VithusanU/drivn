@@ -45,6 +45,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         due_time: input.due_time ?? null,
         estimated_minutes: input.estimated_minutes ?? null,
         blocked_by: input.blocked_by ?? null,
+        is_hard_deadline: input.is_hard_deadline ?? false,
       })
       .select()
       .single()
