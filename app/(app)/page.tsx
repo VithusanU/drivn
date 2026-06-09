@@ -48,15 +48,19 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <>
       <AppHeader />
 
       {/* `home-grid` (see globals.css) keeps the DOM/fetch order identical to
           the mobile visual order — every widget renders exactly once — while
           `grid-template-areas` re-arranges things into a 65/35 two-column
           layout on `lg:`+ screens. Mobile renders this as a plain single
-          column stack, pixel-identical to the previous `space-y-6` layout. */}
-      <div className="home-grid flex-1 px-4 pb-6 overflow-y-auto no-scrollbar scroll-momentum">
+          column stack, pixel-identical to the previous `space-y-6` layout.
+          No px-4 here — AppLayout's inner div already provides it.
+          No overflow-y-auto — body scrolling handles the page; setting
+          overflow-y on this element would implicitly set overflow-x:auto
+          and trigger horizontal scroll on narrow viewports. */}
+      <div className="home-grid pb-4">
         {/* Profile completeness nudge */}
         {profileIncomplete && (
           <div className="home-grid__nudge flex items-center gap-3 px-3.5 py-2.5 rounded-xl border border-amber-400/20 bg-amber-400/5">
@@ -94,10 +98,14 @@ export default function HomePage() {
         </div>
 
         {/* Day context — user tells AI what's happening today */}
-        <DayContext />
+        <div className="home-grid__daycontext">
+          <DayContext />
+        </div>
 
         {/* Today's Focus — hard deadlines + tasks due today */}
-        <TodayFocus />
+        <div className="home-grid__todayfocus">
+          <TodayFocus />
+        </div>
 
         {/* Quick wins strip */}
         <div className="home-grid__quickwins">
@@ -133,6 +141,6 @@ export default function HomePage() {
 
       {/* Persistent quick capture */}
       <QuickCapture />
-    </div>
+    </>
   )
 }

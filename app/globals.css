@@ -125,6 +125,8 @@
     'nudge'
     'nba'
     'upcoming'
+    'daycontext'
+    'todayfocus'
     'quickwins'
     'quote'
     'taskgroups'
@@ -157,9 +159,9 @@
     grid-template-areas:
       'nudge      nudge'
       'nba        upcoming'
-      'quickwins  stats'
-      'taskgroups calendar'
-      'taskgroups quote'
+      'daycontext stats'
+      'todayfocus calendar'
+      'quickwins  quote'
       'taskgroups habits'
       'taskgroups momentum';
   }
@@ -168,6 +170,10 @@
 .home-grid__nudge { grid-area: nudge; }
 .home-grid__nba { grid-area: nba; }
 .home-grid__upcoming { grid-area: upcoming; }
+.home-grid__daycontext { grid-area: daycontext; }
+/* hide the wrapper (and its grid gap) when TodayFocus returns null */
+.home-grid__todayfocus { grid-area: todayfocus; }
+.home-grid__todayfocus:empty { display: none; }
 .home-grid__calendar { grid-area: calendar; }
 .home-grid__stats { grid-area: stats; }
 .home-grid__quickwins { grid-area: quickwins; }
