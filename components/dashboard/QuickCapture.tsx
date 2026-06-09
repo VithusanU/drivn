@@ -244,7 +244,7 @@ export default function QuickCapture() {
     <AddEventSheet key={showAddEvent ? 'open' : 'closed'} open={showAddEvent} onClose={() => setShowAddEvent(false)} />
     <div className={cn(
       'fixed z-20 pb-3',
-      'bottom-[60px] left-0 right-0',
+      'bottom-[calc(60px+env(safe-area-inset-bottom))] left-0 right-0',
       'md:bottom-6 md:left-[220px]'
     )}>
       <div className="max-w-2xl mx-auto px-4">

@@ -1,10 +1,13 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { CalendarClock, X, Check, Sparkles } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { CalendarClock, X, Check, Sparkles, Mic, MicOff } from 'lucide-react'
 import { useContextStore } from '@/stores/contextStore'
+import { isSpeechRecognitionSupported } from '@/lib/voiceParser'
 import { cn } from '@/lib/utils'
+
+type VoiceState = 'idle' | 'listening' | 'done'
 
 export default function DayContext() {
   const contextText = useContextStore((s) => s.contextText)
@@ -14,38 +17,39 @@ export default function DayContext() {
 
   const [expanded, setExpanded] = useState(false)
   const [draft, setDraft] = useState('')
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [voiceState, setVoiceState] = useState<VoiceState>('idle')
+  const [voiceSupported, setVoiceSupported] = useState(false)
+  const [interimText, setInterimText] = useState('')
 
-  // Load from localStorage on mount
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const recognitionRef = useRef<InstanceType<typeof window.SpeechRecognition> | null>(null)
+
   useEffect(() => {
     hydrate()
+    setVoiceSupported(isSpeechRecognitionSupported())
+  }, [])
+
+  useEffect(() => {
+    return () => { recognitionRef.current?.abort() }
   }, [])
 
   const handleOpen = () => {
     setDraft(contextText)
     setExpanded(true)
-    // Focus after animation
     setTimeout(() => textareaRef.current?.focus(), 120)
   }
 
   const handleSave = () => {
+    stopListening()
     const trimmed = draft.trim()
-    if (trimmed) {
-      setContext(trimmed)
-    } else {
-      clearContext()
-    }
+    if (trimmed) setContext(trimmed)
+    else clearContext()
     setExpanded(false)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSave()
-    }
-    if (e.key === 'Escape') {
-      setExpanded(false)
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSave() }
+    if (e.key === 'Escape') { stopListening(); setExpanded(false) }
   }
 
   const handleClear = (e: React.MouseEvent) => {
@@ -54,7 +58,60 @@ export default function DayContext() {
     setExpanded(false)
   }
 
-  // ── Filled state ─────────────────────────────────────────────────────────────
+  const stopListening = () => {
+    recognitionRef.current?.stop()
+    recognitionRef.current = null
+    setVoiceState('idle')
+    setInterimText('')
+  }
+
+  const startListening = () => {
+    if (!voiceSupported) return
+    if (voiceState === 'listening') { stopListening(); return }
+
+    const SR = (window.SpeechRecognition ?? (window as any).webkitSpeechRecognition) as typeof window.SpeechRecognition
+    const recognition = new SR()
+    recognition.lang = 'en-US'
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.maxAlternatives = 1
+
+    recognition.onstart = () => { setVoiceState('listening'); setInterimText('') }
+
+    recognition.onresult = (event) => {
+      let interim = ''
+      let final = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript
+        if (event.results[i].isFinal) final += t
+        else interim += t
+      }
+      setInterimText(interim)
+      if (final) {
+        setVoiceState('done')
+        setInterimText('')
+        setDraft((prev) => (prev ? `${prev.trim()} ${final.trim()}` : final.trim()))
+        // Auto-expand if not already open
+        setExpanded(true)
+      }
+    }
+
+    recognition.onerror = () => stopListening()
+    recognition.onend = () => {
+      recognitionRef.current = null
+      setVoiceState((s) => s === 'listening' ? 'idle' : s)
+      setInterimText('')
+    }
+
+    recognitionRef.current = recognition
+    recognition.start()
+
+    // Auto-expand text box when voice starts
+    setExpanded(true)
+    setDraft(contextText)
+  }
+
+  // ── Filled / compact state ────────────────────────────────────────────────
   if (contextText && !expanded) {
     return (
       <motion.button
@@ -88,13 +145,12 @@ export default function DayContext() {
     )
   }
 
-  // ── Expanded / input state ────────────────────────────────────────────────────
+  // ── Expanded / input state ────────────────────────────────────────────────
   if (expanded) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 4, scale: 0.99 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 4, scale: 0.99 }}
         transition={{ duration: 0.15 }}
         className="rounded-xl border border-primary/25 bg-card overflow-hidden"
       >
@@ -110,22 +166,54 @@ export default function DayContext() {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="e.g. dentist at 3pm, low energy this morning, working from café until noon…"
+            placeholder={
+              voiceState === 'listening'
+                ? (interimText || 'Listening…')
+                : 'e.g. dentist at 3pm, low energy this morning, big meeting at 11am…'
+            }
             rows={3}
             className={cn(
               'w-full bg-transparent outline-none resize-none',
-              'text-[13px] text-foreground/70 placeholder:text-muted-foreground/30',
-              'leading-relaxed'
+              'text-[13px] text-foreground/70 leading-relaxed',
+              voiceState === 'listening'
+                ? 'placeholder:text-red-400/60'
+                : 'placeholder:text-muted-foreground/30'
             )}
           />
         </div>
         <div className="flex items-center justify-between px-3.5 py-2 border-t border-border/50">
-          <p className="text-[10px] text-muted-foreground/30">
-            AI will adapt recommendations around this
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] text-muted-foreground/30">
+              AI adapts around this
+            </p>
+            {/* Mic button */}
+            {voiceSupported && (
+              <button
+                onClick={startListening}
+                aria-label={voiceState === 'listening' ? 'Stop listening' : 'Dictate context'}
+                className={cn(
+                  'w-7 h-7 rounded-lg flex items-center justify-center transition-all',
+                  voiceState === 'listening'
+                    ? 'text-red-400 bg-red-500/10'
+                    : 'text-muted-foreground/40 hover:text-muted-foreground/60'
+                )}
+              >
+                {voiceState === 'listening' ? (
+                  <motion.div
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ repeat: Infinity, duration: 1.2 }}
+                  >
+                    <MicOff className="w-3.5 h-3.5" />
+                  </motion.div>
+                ) : (
+                  <Mic className="w-3.5 h-3.5" />
+                )}
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setExpanded(false)}
+              onClick={() => { stopListening(); setExpanded(false) }}
               className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors"
             >
               Cancel
@@ -148,19 +236,43 @@ export default function DayContext() {
     )
   }
 
-  // ── Empty / prompt state ──────────────────────────────────────────────────────
+  // ── Empty / prompt state ──────────────────────────────────────────────────
   return (
-    <button
-      onClick={handleOpen}
-      className={cn(
-        'w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl',
-        'border border-dashed border-border/40',
-        'text-muted-foreground/30 hover:text-muted-foreground/50 hover:border-border/60',
-        'transition-all'
+    <div className="flex items-center gap-2">
+      <button
+        onClick={handleOpen}
+        className={cn(
+          'flex-1 flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl',
+          'border border-dashed border-border/40',
+          'text-muted-foreground/30 hover:text-muted-foreground/50 hover:border-border/60',
+          'transition-all text-left'
+        )}
+      >
+        <CalendarClock className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="text-[12px]">Anything happening today? Tell the AI…</span>
+      </button>
+
+      {/* Mic shortcut — tap to dictate without opening the text box first */}
+      {voiceSupported && (
+        <button
+          onClick={startListening}
+          aria-label="Dictate today's context"
+          className={cn(
+            'w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 transition-all',
+            voiceState === 'listening'
+              ? 'border-red-500/40 bg-red-500/10 text-red-400'
+              : 'border-dashed border-border/40 text-muted-foreground/30 hover:text-muted-foreground/50 hover:border-border/60'
+          )}
+        >
+          {voiceState === 'listening' ? (
+            <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1.2 }}>
+              <MicOff className="w-3.5 h-3.5" />
+            </motion.div>
+          ) : (
+            <Mic className="w-3.5 h-3.5" />
+          )}
+        </button>
       )}
-    >
-      <CalendarClock className="w-3.5 h-3.5 flex-shrink-0" />
-      <span className="text-[12px]">Anything happening today? Tell the AI…</span>
-    </button>
+    </div>
   )
 }

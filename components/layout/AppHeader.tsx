@@ -25,7 +25,7 @@ export default function AppHeader() {
   }).length
 
   return (
-    <header className="px-4 pt-6 pb-4 flex items-start justify-between">
+    <header className="px-4 pt-[max(env(safe-area-inset-top),1.5rem)] pb-4 flex items-start justify-between">
       <div>
         <h1 className="text-[22px] font-medium text-foreground leading-tight">
           {getGreeting(profile?.full_name ?? null)}
