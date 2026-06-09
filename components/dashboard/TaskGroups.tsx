@@ -146,7 +146,7 @@ export default function TaskGroups() {
 
       {/* Category filter pills (only if multiple categories used) */}
       {usedCategories.length > 1 && (
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-4 px-4 pb-0.5">
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pr-4 pb-0.5">
           <button
             onClick={() => setCategoryFilter(null)}
             className={cn(
