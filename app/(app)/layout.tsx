@@ -11,6 +11,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useHabitStore } from '@/stores/habitStore'
 import { useUserStore } from '@/stores/userStore'
 import { useEventStore } from '@/stores/eventStore'
+import { useUIStore } from '@/stores/uiStore'
 import { useGlobalTimer } from '@/hooks/useGlobalTimer'
 import { useGlobalSpotifyPlayer } from '@/hooks/useGlobalSpotifyPlayer'
 import { usePresenceSync } from '@/hooks/usePresenceSync'
@@ -25,6 +26,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // max-w-2xl reading-width column they already have. Scoped via pathname so
   // this is purely additive: nothing about any other route changes.
   const isHome = pathname === '/'
+  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
 
   const fetchTasks = useTaskStore((s) => s.fetchTasks)
   const fetchHabits = useHabitStore((s) => s.fetchHabits)
@@ -79,8 +81,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar — fixed on screen, this div reserves its width in the flow */}
-      <div className="hidden md:block w-[220px] flex-shrink-0">
+      {/* Sidebar — fixed on screen, this div reserves its width in the flow.
+          Width tracks SideNav's own collapsed state so content reflows into
+          the freed space when the sidebar is collapsed. */}
+      <div className={cn(
+        'hidden md:block flex-shrink-0 transition-[width] duration-200',
+        sidebarCollapsed ? 'w-[68px]' : 'w-[220px]'
+      )}>
         <SideNav />
       </div>
 
