@@ -587,7 +587,12 @@ export default function QuickCapture() {
               : 'What needs to get done?'
           }
           className={cn(
-            'flex-1 bg-transparent border-none outline-none py-3',
+            // `min-w-0` lets the input shrink below its default intrinsic width —
+            // without it, this flex-1 input refused to shrink alongside the 4 icon
+            // buttons, overflowing this `fixed` bar past the right edge in portrait
+            // (invisible to Chromium's scrollWidth, but iOS Safari widens the
+            // viewport to fit fixed elements that overflow, dragging the whole page).
+            'flex-1 min-w-0 bg-transparent border-none outline-none py-3',
             'text-[14px] text-foreground/70 placeholder:text-muted-foreground/30',
             'font-sans',
             voiceState === 'listening' && 'placeholder:text-red-400/60'
