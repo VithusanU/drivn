@@ -95,7 +95,7 @@ export default function TaskGroups() {
       <div className="flex items-center gap-2">
         {/* Search */}
         <div className={cn(
-          'flex-1 flex items-center gap-2 px-3 py-2 rounded-xl border transition-all',
+          'flex-1 min-w-0 flex items-center gap-2 px-3 py-2 rounded-xl border transition-all',
           search ? 'border-primary/40 bg-primary/5' : 'border-border/50 bg-background/50'
         )}>
           <Search className="w-3.5 h-3.5 text-muted-foreground/50 flex-shrink-0" />
@@ -103,7 +103,7 @@ export default function TaskGroups() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search tasks…"
-            className="flex-1 bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground/30 outline-none"
+            className="flex-1 min-w-0 bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground/30 outline-none"
           />
           {search && (
             <button onClick={() => setSearch('')} className="text-muted-foreground/40 hover:text-muted-foreground transition-colors">

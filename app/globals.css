@@ -137,6 +137,20 @@
   gap: 1.5rem;
 }
 
+/* Grid items default to `min-width: auto`, which means a `1fr` track's
+   automatic minimum is the largest MIN-CONTENT size of any item placed in
+   it — not the track's actual `1fr` width. A descendant with an
+   `overflow-x-auto` row of non-shrinking pills/cards (e.g. TaskGroups'
+   category filter, HabitStrip) reports its full scrollable content width as
+   that min-content, inflating `.home-grid` (and the whole page) past the
+   viewport on narrow screens — clipped invisibly by `overflow-x: hidden` on
+   body, shifting every section over. `min-width: 0` lets the track size to
+   its actual `1fr` width and pushes overflow handling back down to each
+   item's own `overflow-x-auto` container, where it belongs. */
+.home-grid > * {
+  min-width: 0;
+}
+
 @media (min-width: 1024px) {
   .home-grid {
     grid-template-columns: 65fr 35fr;
