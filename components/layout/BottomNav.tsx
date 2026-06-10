@@ -62,7 +62,10 @@ export default function BottomNav() {
             key={href}
             href={href}
             className={cn(
-              'flex flex-col items-center gap-1 px-3 py-2 touch-target',
+              // `flex-1 min-w-0` lets each item shrink to share the bar width evenly —
+              // with 6+ items (incl. Admin) plus the theme toggle, fixed `px-3` padding
+              // pushed the total row width past narrow/portrait viewports.
+              'flex-1 min-w-0 flex flex-col items-center gap-1 px-1 py-2 touch-target',
               'transition-colors duration-150',
               isActive ? 'text-primary' : 'text-muted-foreground'
             )}
@@ -73,11 +76,11 @@ export default function BottomNav() {
                 <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-drivn-green border border-background" />
               )}
             </div>
-            <span className="text-[10px] font-medium">{label}</span>
+            <span className="text-[10px] font-medium truncate max-w-full">{label}</span>
           </Link>
         )
       })}
-      <ThemeToggle className="mb-1" />
+      <ThemeToggle className="mb-1 flex-shrink-0" />
     </nav>
   )
 }
