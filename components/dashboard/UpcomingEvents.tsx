@@ -220,6 +220,7 @@ export default function UpcomingEvents() {
   const deleteEvent = useEventStore((s) => s.deleteEvent)
   const undoDeleteEvent = useEventStore((s) => s.undoDeleteEvent)
   const createTask = useTaskStore((s) => s.createTask)
+  const deleteTask = useTaskStore((s) => s.deleteTask)
   const showUndo = useUndoStore((s) => s.show)
   const [addOpen, setAddOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
@@ -237,10 +238,14 @@ export default function UpcomingEvents() {
     if (!event) return
     setRescheduleEvent(null)
     await deleteEvent(event.id)
-    await createTask({
+    const task = await createTask({
       title: `Reschedule: ${event.title}`,
       category: EVENT_TO_TASK_CATEGORY[event.category],
       urgency: 'medium',
+    })
+    showUndo(`"${event.title}" needs rescheduling`, async () => {
+      if (task) await deleteTask(task.id)
+      await undoDeleteEvent(event.id, event)
     })
   }
 
