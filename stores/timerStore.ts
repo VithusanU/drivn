@@ -140,11 +140,18 @@ export const useTimerStore = create<TimerStore>()(
       },
 
       addTime: (minutes) => {
-        const { endTimeMs, totalSeconds, pausedRemainingMs } = get()
+        const { endTimeMs, totalSeconds, pausedRemainingMs, timeUp } = get()
         const extraMs = minutes * 60 * 1000
+        // Once the timer hits zero, endTimeMs is stuck in the past (it's the
+        // instant the timer expired). Adding minutes on top of a stale past
+        // timestamp would only grant however much time has elapsed since
+        // expiry plus the requested minutes — e.g. tapping "+30m" 25 minutes
+        // after expiry would only add 5 minutes. Re-anchor to now instead.
+        const baseMs = timeUp ? Date.now() : endTimeMs
         set({
-          endTimeMs: endTimeMs + extraMs,
+          endTimeMs: baseMs + extraMs,
           totalSeconds: totalSeconds + minutes * 60,
+          secondsLeft: Math.round((baseMs + extraMs - Date.now()) / 1000),
           timeUp: false,
           running: true,
           ...(pausedRemainingMs !== null ? { pausedRemainingMs: pausedRemainingMs + extraMs } : {}),
