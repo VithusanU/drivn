@@ -17,11 +17,14 @@ export default function TodayFocus() {
 
   const today = getTodayStr()
 
-  // Include tasks due today, AND hard deadline tasks that are overdue
+  // Include tasks due today, AND hard deadline tasks that are overdue.
+  // `due_date` is a timestamptz string (e.g. "2026-06-11T00:00:00+00:00"),
+  // so slice to the calendar-date digits before comparing to `today`.
   const todayTasks = tasks.filter((t) => {
     if (t.status !== 'active') return false
-    const dueToday = t.due_date === today
-    const overdueHardDeadline = t.is_hard_deadline && t.due_date != null && t.due_date < today
+    const dueDateStr = t.due_date?.slice(0, 10)
+    const dueToday = dueDateStr === today
+    const overdueHardDeadline = t.is_hard_deadline && dueDateStr != null && dueDateStr < today
     return dueToday || overdueHardDeadline
   })
 
@@ -100,18 +103,19 @@ export default function TodayFocus() {
               )}>
                 {task.title}
               </p>
-              {task.due_date && (
-                <p className={cn(
-                  'text-[11px] mt-0.5',
-                  task.is_hard_deadline && task.due_date < today
-                    ? 'text-red-400/70'
-                    : 'text-muted-foreground/40'
-                )}>
-                  {task.is_hard_deadline && task.due_date < today
-                    ? `Overdue · ${formatDueDate(task.due_date, task.due_time)}`
-                    : formatDueDate(task.due_date, task.due_time)}
-                </p>
-              )}
+              {task.due_date && (() => {
+                const overdue = task.is_hard_deadline && task.due_date.slice(0, 10) < today
+                return (
+                  <p className={cn(
+                    'text-[11px] mt-0.5',
+                    overdue ? 'text-red-400/70' : 'text-muted-foreground/40'
+                  )}>
+                    {overdue
+                      ? `Overdue · ${formatDueDate(task.due_date, task.due_time)}`
+                      : formatDueDate(task.due_date, task.due_time)}
+                  </p>
+                )
+              })()}
             </div>
 
             {task.is_hard_deadline && (
