@@ -603,7 +603,7 @@ export default function QuickCapture() {
         <button
           onClick={() => setShowAddEvent(true)}
           aria-label="Add event"
-          className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all text-muted-foreground/30 hover:text-muted-foreground/60"
+          className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all text-muted-foreground/60 hover:text-muted-foreground"
         >
           <CalendarPlus className="w-3.5 h-3.5" />
         </button>
@@ -612,7 +612,7 @@ export default function QuickCapture() {
         <button
           onClick={() => scannerRef.current?.open()}
           aria-label="Scan sticky note"
-          className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all text-muted-foreground/30 hover:text-muted-foreground/60"
+          className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all text-muted-foreground/60 hover:text-muted-foreground"
         >
           <Camera className="w-3.5 h-3.5" />
         </button>
@@ -626,7 +626,7 @@ export default function QuickCapture() {
               'flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all',
               voiceState === 'listening'
                 ? 'text-red-400 bg-red-500/10'
-                : 'text-muted-foreground/30 hover:text-muted-foreground/60'
+                : 'text-muted-foreground/60 hover:text-muted-foreground'
             )}
           >
             <AnimatePresence mode="wait">

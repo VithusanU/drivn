@@ -42,7 +42,7 @@ export default function QuickWins() {
     }
   }
 
-  if (quickWins.length === 0) return null
+  const isEmpty = quickWins.length === 0
 
   return (
     <div className="space-y-2">
@@ -62,7 +62,16 @@ export default function QuickWins() {
         )}
       </div>
 
-      {/* Horizontal scroll strip */}
+      {isEmpty ? (
+        <div className={cn(
+          'flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl',
+          'border border-dashed border-border/40 text-muted-foreground/30',
+          'min-h-[58px]'
+        )}>
+          <Zap className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-[12px]">No quick wins right now</span>
+        </div>
+      ) : (
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
         {quickWins.map((task, i) => (
           <motion.button
@@ -91,6 +100,7 @@ export default function QuickWins() {
           </motion.button>
         ))}
       </div>
+      )}
     </div>
   )
 }

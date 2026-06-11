@@ -252,6 +252,120 @@ async function handle(): Promise<Response> {
       .in('id', dueEventAlarms.map((e: any) => e.id))
   }
 
+  // ── Part 4: lead-time event reminders ("tomorrow" / "next week") ───────────
+  // Separate from Part 2's exact-time alarm_at alarms — this is a heads-up
+  // sent 1 day and/or 1 week before event_date, gated by per-user prefs
+  // (remind_event_1day / remind_event_1week, default true) and per-event
+  // dedupe flags that never reset (migration 023_event_lead_reminders).
+  const tomorrowDate = new Date(now.getTime() + 24 * 60 * 60_000).toISOString().slice(0, 10)
+  const nextWeekDate = new Date(now.getTime() + 7 * 24 * 60 * 60_000).toISOString().slice(0, 10)
+
+  const { data: leadEvents } = await supabase
+    .from('events')
+    .select('id, user_id, title, event_date, reminder_1day_sent, reminder_1week_sent')
+    .in('event_date', [tomorrowDate, nextWeekDate])
+    .or('reminder_1day_sent.eq.false,reminder_1week_sent.eq.false')
+
+  let leadRemindersSent = 0
+  let leadReminderDebug: Array<{ taskId: string; userId: string; hasSub: boolean; status: string; reason?: string; statusCode?: number; endpoint?: string }> | undefined
+  const oneDayIds: string[] = []
+  const oneWeekIds: string[] = []
+
+  if (leadEvents?.length) {
+    const leadUserIds = [...new Set(leadEvents.map((e: any) => e.user_id))]
+    const { data: leadProfiles } = await supabase
+      .from('user_profiles')
+      .select('id, remind_event_1day, remind_event_1week')
+      .in('id', leadUserIds)
+
+    const prefsByUser: Record<string, { remind_event_1day: boolean; remind_event_1week: boolean }> = {}
+    for (const p of (leadProfiles ?? []) as any[]) {
+      prefsByUser[p.id] = { remind_event_1day: p.remind_event_1day, remind_event_1week: p.remind_event_1week }
+    }
+
+    type LeadItem = { event: any; kind: '1day' | '1week' }
+    const leadItems: LeadItem[] = []
+    for (const e of leadEvents as any[]) {
+      const prefs = prefsByUser[e.user_id] ?? { remind_event_1day: true, remind_event_1week: true }
+      if (e.event_date === tomorrowDate && !e.reminder_1day_sent && prefs.remind_event_1day) {
+        leadItems.push({ event: e, kind: '1day' })
+      }
+      if (e.event_date === nextWeekDate && !e.reminder_1week_sent && prefs.remind_event_1week) {
+        leadItems.push({ event: e, kind: '1week' })
+      }
+    }
+
+    if (leadItems.length) {
+      const { data: leadSubs } = await supabase
+        .from('push_subscriptions')
+        .select('user_id, endpoint, p256dh, auth')
+        .in('user_id', [...new Set(leadItems.map((i) => i.event.user_id))])
+        .not('endpoint', 'is', null)
+
+      const leadSubsByUser: Record<string, any[]> = {}
+      for (const s of (leadSubs ?? []) as any[]) {
+        (leadSubsByUser[s.user_id] ??= []).push(s)
+      }
+
+      const leadSendList: Array<{ item: LeadItem; sub: any }> = []
+      for (const item of leadItems) {
+        for (const sub of leadSubsByUser[item.event.user_id] ?? []) leadSendList.push({ item, sub })
+      }
+
+      const leadResults = await Promise.allSettled(
+        leadSendList.map(({ item, sub }) =>
+          pushTo(sub, {
+            title: item.kind === '1day' ? `📅 Tomorrow: ${item.event.title}` : `🗓️ Next week: ${item.event.title}`,
+            body: item.kind === '1day'
+              ? "Coming up tomorrow — heads up."
+              : "Coming up in a week — plan ahead.",
+            icon: '/logo.png',
+            url: '/',
+          })
+        )
+      )
+
+      leadRemindersSent = leadResults.filter((r) => r.status === 'fulfilled').length
+
+      leadReminderDebug = leadResults.map((r, i) => {
+        const { item, sub } = leadSendList[i]
+        return {
+          taskId: item.event.id,
+          userId: item.event.user_id,
+          hasSub: true,
+          status: r.status,
+          reason: r.status === 'rejected'
+            ? (r.reason?.body || r.reason?.message || String(r.reason))
+            : (r.value?.body || undefined),
+          statusCode: r.status === 'rejected' ? r.reason?.statusCode : r.value?.statusCode,
+          endpoint: String(sub.endpoint).slice(0, 60),
+        }
+      })
+
+      for (const item of leadItems) {
+        if (!(leadSubsByUser[item.event.user_id]?.length)) {
+          leadReminderDebug = leadReminderDebug ?? []
+          leadReminderDebug.push({ taskId: item.event.id, userId: item.event.user_id, hasSub: false, status: 'rejected', reason: 'no subscription' })
+        }
+      }
+    }
+
+    // Mark dedupe flags regardless of whether a push was actually delivered —
+    // a missing subscription shouldn't cause the reminder to be retried daily.
+    for (const e of leadEvents as any[]) {
+      const prefs = prefsByUser[e.user_id] ?? { remind_event_1day: true, remind_event_1week: true }
+      if (e.event_date === tomorrowDate && !e.reminder_1day_sent && prefs.remind_event_1day) oneDayIds.push(e.id)
+      if (e.event_date === nextWeekDate && !e.reminder_1week_sent && prefs.remind_event_1week) oneWeekIds.push(e.id)
+    }
+
+    if (oneDayIds.length) {
+      await supabase.from('events').update({ reminder_1day_sent: true }).in('id', oneDayIds)
+    }
+    if (oneWeekIds.length) {
+      await supabase.from('events').update({ reminder_1week_sent: true }).in('id', oneWeekIds)
+    }
+  }
+
   // ── Part 3: daily reminder (single time set in Profile, USER-level) ─────────
   // reminder_time / last_reminded_at now live on user_profiles (migration
   // 020_multi_device_push) — they're a per-user preference, not per-device,
@@ -271,14 +385,14 @@ async function handle(): Promise<Response> {
   const { data: profiles, error } = await profileQuery
 
   if (error || !profiles?.length) {
-    return new Response(JSON.stringify({ sent: 0, alarmsSent, alarmDebug, eventAlarmsSent, eventAlarmDebug, window: `${windowStart}–${windowEnd}` }), { status: 200 })
+    return new Response(JSON.stringify({ sent: 0, alarmsSent, alarmDebug, eventAlarmsSent, eventAlarmDebug, leadRemindersSent, leadReminderDebug, window: `${windowStart}–${windowEnd}` }), { status: 200 })
   }
 
   // Dedup: skip users already reminded today
   const eligibleProfiles = profiles.filter((p: any) => p.last_reminded_at?.slice(0, 10) !== today)
 
   if (!eligibleProfiles.length) {
-    return new Response(JSON.stringify({ sent: 0, alarmsSent, alarmDebug, eventAlarmsSent, eventAlarmDebug, note: 'all already reminded today' }), { status: 200 })
+    return new Response(JSON.stringify({ sent: 0, alarmsSent, alarmDebug, eventAlarmsSent, eventAlarmDebug, leadRemindersSent, leadReminderDebug, note: 'all already reminded today' }), { status: 200 })
   }
 
   const eligibleUserIds = eligibleProfiles.map((p: any) => p.id)
@@ -327,5 +441,5 @@ async function handle(): Promise<Response> {
     .update({ last_reminded_at: now.toISOString() })
     .in('id', eligibleUserIds)
 
-  return new Response(JSON.stringify({ sent, alarmsSent, alarmDebug, eventAlarmsSent, eventAlarmDebug, window: `${windowStart}–${windowEnd}` }), { status: 200 })
+  return new Response(JSON.stringify({ sent, alarmsSent, alarmDebug, eventAlarmsSent, eventAlarmDebug, leadRemindersSent, leadReminderDebug, window: `${windowStart}–${windowEnd}` }), { status: 200 })
 }

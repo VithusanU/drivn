@@ -32,7 +32,22 @@ export default function TodayFocus() {
     return (a.due_date ?? '').localeCompare(b.due_date ?? '')
   })
 
-  if (sorted.length === 0) return null
+  if (sorted.length === 0) {
+    return (
+      <section className="space-y-2">
+        <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground/60">
+          Today&apos;s focus
+        </p>
+        <div className={cn(
+          'flex items-center gap-2.5 px-3.5 py-3 rounded-xl',
+          'border border-dashed border-border/40 text-muted-foreground/30'
+        )}>
+          <CalendarClock className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-[12px]">Nothing due today</span>
+        </div>
+      </section>
+    )
+  }
 
   const hardCount = sorted.filter((t) => t.is_hard_deadline).length
 

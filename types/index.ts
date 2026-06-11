@@ -12,6 +12,8 @@ export interface UserProfile {
   anthropic_key_masked: string | null
   username: string | null
   share_activity: boolean
+  remind_event_1day: boolean
+  remind_event_1week: boolean
 }
 
 // ─── Tasks ─────────────────────────────────────────────────────────────────
@@ -158,6 +160,8 @@ export interface CalendarEvent {
   alarm_enabled: boolean
   alarm_at: string | null
   last_alarm_at: string | null
+  reminder_1day_sent: boolean
+  reminder_1week_sent: boolean
   created_at: string
 }
 
@@ -310,6 +314,7 @@ export interface UserStore {
   requestBetaAccess: () => Promise<'ok' | 'already_requested' | 'error'>
   saveApiKey: (key: string) => Promise<'ok' | 'invalid' | 'error'>
   removeApiKey: () => Promise<void>
+  toggleEventLeadReminder: (pref: 'remind_event_1day' | 'remind_event_1week') => Promise<void>
 }
 
 // ─── AI Store ──────────────────────────────────────────────────────────────

@@ -26,6 +26,9 @@ export default function ProfilePage() {
   const requestBetaAccess = useUserStore((s) => s.requestBetaAccess)
   const saveApiKey = useUserStore((s) => s.saveApiKey)
   const removeApiKey = useUserStore((s) => s.removeApiKey)
+  const toggleEventLeadReminder = useUserStore((s) => s.toggleEventLeadReminder)
+  const remindEvent1Day = profile?.remind_event_1day ?? true
+  const remindEvent1Week = profile?.remind_event_1week ?? true
   const router = useRouter()
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -358,6 +361,43 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
+
+        {/* Event lead-time reminders */}
+        <button
+          onClick={() => notifEnabled && toggleEventLeadReminder('remind_event_1day')}
+          disabled={!notifEnabled}
+          className={cn(
+            'w-full flex items-center justify-between px-4 py-3.5',
+            'text-sm text-foreground/65 hover:bg-secondary/50 transition-colors border-b border-border/50',
+            !notifEnabled && 'opacity-40 cursor-not-allowed'
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <CalendarDays className="w-4 h-4 text-muted-foreground" />
+            <span>Remind me 1 day before events</span>
+          </div>
+          <span className={cn('text-xs font-medium', remindEvent1Day ? 'text-primary' : 'text-muted-foreground/50')}>
+            {remindEvent1Day ? 'On' : 'Off'}
+          </span>
+        </button>
+
+        <button
+          onClick={() => notifEnabled && toggleEventLeadReminder('remind_event_1week')}
+          disabled={!notifEnabled}
+          className={cn(
+            'w-full flex items-center justify-between px-4 py-3.5',
+            'text-sm text-foreground/65 hover:bg-secondary/50 transition-colors border-b border-border/50',
+            !notifEnabled && 'opacity-40 cursor-not-allowed'
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <CalendarDays className="w-4 h-4 text-muted-foreground" />
+            <span>Remind me 1 week before events</span>
+          </div>
+          <span className={cn('text-xs font-medium', remindEvent1Week ? 'text-primary' : 'text-muted-foreground/50')}>
+            {remindEvent1Week ? 'On' : 'Off'}
+          </span>
+        </button>
 
         {/* Manage habits */}
         <button
