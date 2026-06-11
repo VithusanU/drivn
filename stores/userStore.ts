@@ -136,4 +136,19 @@ export const useUserStore = create<UserStore>((set, get) => ({
       }))
     } catch {}
   },
+
+  toggleEventLeadReminder: async (pref) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const profile = get().profile
+    const next = !(profile?.[pref] ?? true)
+
+    set((state) => ({
+      profile: state.profile ? { ...state.profile, [pref]: next } : null,
+    }))
+
+    await supabase.from('user_profiles').update({ [pref]: next }).eq('id', user.id)
+  },
 }))
