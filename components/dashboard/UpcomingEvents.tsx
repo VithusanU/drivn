@@ -123,7 +123,7 @@ function EventRow({ event, onEdit, onDone, onReschedule }: EventRowProps) {
   const isTomorrow = countdown === 'Tomorrow'
 
   const x = useMotionValue(0)
-  const SWIPE_THRESHOLD = 80
+  const SWIPE_THRESHOLD = 50
   const doneOpacity = useTransform(x, [0, SWIPE_THRESHOLD], [0, 1])
   const rescheduleOpacity = useTransform(x, [-SWIPE_THRESHOLD, 0], [1, 0])
 
@@ -160,7 +160,7 @@ function EventRow({ event, onEdit, onDone, onReschedule }: EventRowProps) {
         drag="x"
         style={{ x }}
         dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.15}
+        dragElastic={0.6}
         onDragEnd={handleDragEnd}
         className={cn(
           'w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl',

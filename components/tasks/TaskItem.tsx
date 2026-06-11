@@ -36,7 +36,7 @@ export default function TaskItem({ task, selectMode = false, selected = false, o
   const router = useRouter()
 
   const x = useMotionValue(0)
-  const SWIPE_THRESHOLD = 80
+  const SWIPE_THRESHOLD = 50
   const completeOpacity = useTransform(x, [0, SWIPE_THRESHOLD], [0, 1])
   const deleteOpacity = useTransform(x, [-SWIPE_THRESHOLD, 0], [1, 0])
 
@@ -126,7 +126,7 @@ export default function TaskItem({ task, selectMode = false, selected = false, o
         drag={!selectMode && !blocked ? 'x' : false}
         style={{ x }}
         dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.15}
+        dragElastic={0.6}
         onDragEnd={handleDragEnd}
         className={cn(
           'flex items-center gap-3 px-3.5 py-3',
