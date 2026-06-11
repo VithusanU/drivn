@@ -25,9 +25,6 @@ export default function QuickWins() {
 
   const isAIMode = betaModeEnabled && canUseAI
 
-  // Don't show while in a focus session
-  if (timerTaskId) return null
-
   // Resolve quick wins — AI list takes priority, fall back to algorithmic
   let quickWins = getQuickWins()
   let usingAI = false
@@ -40,6 +37,12 @@ export default function QuickWins() {
       quickWins = aiWins
       usingAI = true
     }
+  }
+
+  // Exclude the task currently in a focus session — it's already shown
+  // front-and-center in the NextBestAction card.
+  if (timerTaskId) {
+    quickWins = quickWins.filter((t) => t.id !== timerTaskId)
   }
 
   const isEmpty = quickWins.length === 0
