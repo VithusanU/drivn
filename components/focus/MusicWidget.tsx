@@ -6,7 +6,6 @@ import { SkipBack, SkipForward, Play, Pause, Music, Unlink, ListMusic, ChevronLe
 import {
   startSpotifyAuth, disconnectSpotify,
   getUserPlaylists, getPlaylistTracks, getLikedTracks, playContext, playTracks,
-  getGrantedScope,
   LIKED_SONGS_ID,
   type SpotifyPlaylist, type SpotifyPlaylistTrack,
 } from '@/lib/spotify'
@@ -170,11 +169,12 @@ export default function MusicWidget() {
       } else if (msg === 'network') {
         setBrowseError('Could not reach Spotify. Check your connection.')
       } else if (msg.startsWith('spotify_404') || msg.startsWith('spotify_403')) {
-        // Temporary diagnostic — show exactly which scopes the current
-        // token was granted, so we can confirm whether playlist-read-*
-        // scopes are actually present.
-        const granted = getGrantedScope()
-        setBrowseError(`${msg} — granted scopes: ${granted || '(none recorded)'}`)
+        // As of Nov 2024, Spotify restricts GET /playlists/{id}/tracks to
+        // apps with Extended Quota Mode — Development Mode apps get a 403
+        // here for every playlist (even ones you own), while /me/playlists
+        // and /me/tracks (Liked Songs) keep working. Not scope-related and
+        // not fixable client-side; let the user play the playlist instead.
+        setBrowseError('no_track_access')
       } else {
         // anything else — stay connected, just show error for this playlist
         setBrowseError(`Could not load tracks (${msg || 'unknown error'}). Tap to retry.`)
@@ -404,7 +404,7 @@ export default function MusicWidget() {
                           </button>
                           <button
                             onClick={() => handlePlayPlaylist(pl)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 w-6 h-6 rounded-full bg-[#1DB954] flex items-center justify-center"
+                            className="flex-shrink-0 w-7 h-7 rounded-full bg-[#1DB954] flex items-center justify-center active:scale-95 transition-transform"
                           >
                             <Play className="w-3 h-3 fill-white text-white ml-0.5" />
                           </button>
@@ -437,6 +437,19 @@ export default function MusicWidget() {
                         className="text-[12px] font-medium text-[#1DB954] hover:underline"
                       >
                         Disconnect &amp; reconnect
+                      </button>
+                    </div>
+                  ) : browseError === 'no_track_access' ? (
+                    <div className="flex flex-col items-center gap-2 py-2">
+                      <p className="text-[12px] text-muted-foreground/70 text-center">
+                        Can&apos;t preview tracks for this playlist, but you can still play it.
+                      </p>
+                      <button
+                        onClick={() => selectedPlaylist && handlePlayPlaylist(selectedPlaylist)}
+                        className="flex items-center gap-1.5 text-[12px] font-medium text-[#1DB954] hover:underline"
+                      >
+                        <Play className="w-3 h-3 fill-current" />
+                        Play playlist
                       </button>
                     </div>
                   ) : browseError ? (
