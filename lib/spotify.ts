@@ -118,8 +118,15 @@ export async function exchangeSpotifyCode(code: string): Promise<boolean> {
   localStorage.setItem('spotify_access_token', data.access_token)
   localStorage.setItem('spotify_refresh_token', data.refresh_token)
   localStorage.setItem('spotify_expires_at', String(Date.now() + data.expires_in * 1000))
+  localStorage.setItem('spotify_granted_scope', data.scope ?? '')
   localStorage.removeItem('spotify_verifier')
   return true
+}
+
+// Diagnostic — the scope string Spotify actually granted on last
+// auth/refresh, so we can tell a missing-scope 403 apart from other causes.
+export function getGrantedScope(): string {
+  return localStorage.getItem('spotify_granted_scope') ?? ''
 }
 
 export async function refreshSpotifyToken(): Promise<string | null> {
@@ -141,6 +148,7 @@ export async function refreshSpotifyToken(): Promise<string | null> {
 
   localStorage.setItem('spotify_access_token', data.access_token)
   localStorage.setItem('spotify_expires_at', String(Date.now() + data.expires_in * 1000))
+  localStorage.setItem('spotify_granted_scope', data.scope ?? '')
   if (data.refresh_token) localStorage.setItem('spotify_refresh_token', data.refresh_token)
   return data.access_token
 }

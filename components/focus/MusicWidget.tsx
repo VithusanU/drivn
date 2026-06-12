@@ -6,6 +6,7 @@ import { SkipBack, SkipForward, Play, Pause, Music, Unlink, ListMusic, ChevronLe
 import {
   startSpotifyAuth, disconnectSpotify,
   getUserPlaylists, getPlaylistTracks, getLikedTracks, playContext, playTracks,
+  getGrantedScope,
   LIKED_SONGS_ID,
   type SpotifyPlaylist, type SpotifyPlaylistTrack,
 } from '@/lib/spotify'
@@ -169,12 +170,11 @@ export default function MusicWidget() {
       } else if (msg === 'network') {
         setBrowseError('Could not reach Spotify. Check your connection.')
       } else if (msg.startsWith('spotify_404') || msg.startsWith('spotify_403')) {
-        // Spotify's API blocks reading the track list of Spotify-owned
-        // curated/algorithmic playlists (e.g. genre mixes you've followed,
-        // not playlists you built yourself) for apps without Extended Quota
-        // Mode — returns a generic 403/404 regardless of granted scopes.
-        // The playlist can still be played via the play button below.
-        setBrowseError("Can't show tracks for this playlist (it may be Spotify-curated) — use the play button instead.")
+        // Temporary diagnostic — show exactly which scopes the current
+        // token was granted, so we can confirm whether playlist-read-*
+        // scopes are actually present.
+        const granted = getGrantedScope()
+        setBrowseError(`${msg} — granted scopes: ${granted || '(none recorded)'}`)
       } else {
         // anything else — stay connected, just show error for this playlist
         setBrowseError(`Could not load tracks (${msg || 'unknown error'}). Tap to retry.`)
