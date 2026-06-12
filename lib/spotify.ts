@@ -53,6 +53,12 @@ export async function startSpotifyAuth() {
     code_challenge_method: 'S256',
     code_challenge: challenge,
     scope: SCOPES,
+    // Force Spotify to re-show the consent screen even if this app was
+    // previously authorized — otherwise it silently re-issues a token with
+    // only the PREVIOUSLY granted scopes, so users who connected before
+    // playlist-read-private/playlist-read-collaborative were added never
+    // actually get those scopes on "reconnect".
+    show_dialog: 'true',
   })
 
   const url = `https://accounts.spotify.com/authorize?${params}`
