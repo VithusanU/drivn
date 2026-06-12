@@ -168,15 +168,14 @@ export default function MusicWidget() {
         setBrowseError('needs_reconnect')
       } else if (msg === 'network') {
         setBrowseError('Could not reach Spotify. Check your connection.')
-      } else if (msg === 'spotify_404') {
+      } else if (msg === 'spotify_404' || msg === 'spotify_403') {
         // Spotify-owned/algorithmic playlists (Discover Weekly, Daily Mix,
-        // Release Radar, etc.) can't be browsed via this API endpoint —
-        // only playlists you created or saved yourself are readable here.
+        // Release Radar, "Throwback Tunes"-style time-capsule mixes, etc.)
+        // can't be browsed via this API endpoint — Spotify returns 403 (or
+        // 404) for these regardless of granted scopes, since apps without
+        // Extended Quota Mode can't read algorithmic playlist contents.
+        // Only playlists you created or saved yourself are readable here.
         setBrowseError("This playlist's tracks aren't available — try one you created or saved yourself.")
-      } else if (msg === 'spotify_403') {
-        // Likely a stale token missing the playlist scopes — reconnecting
-        // re-requests the full scope list from lib/spotify.ts.
-        setBrowseError('needs_reconnect')
       } else {
         // anything else — stay connected, just show error for this playlist
         setBrowseError('Could not load tracks. Tap to retry.')
