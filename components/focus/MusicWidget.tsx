@@ -169,9 +169,12 @@ export default function MusicWidget() {
       } else if (msg === 'network') {
         setBrowseError('Could not reach Spotify. Check your connection.')
       } else if (msg.startsWith('spotify_404') || msg.startsWith('spotify_403')) {
-        // Surface Spotify's actual error detail (temporary, for debugging
-        // why some user-owned playlists return 403 even with full scopes).
-        setBrowseError(`This playlist's tracks aren't available (${msg}).`)
+        // Spotify's API blocks reading the track list of Spotify-owned
+        // curated/algorithmic playlists (e.g. genre mixes you've followed,
+        // not playlists you built yourself) for apps without Extended Quota
+        // Mode — returns a generic 403/404 regardless of granted scopes.
+        // The playlist can still be played via the play button below.
+        setBrowseError("Can't show tracks for this playlist (it may be Spotify-curated) — use the play button instead.")
       } else {
         // anything else — stay connected, just show error for this playlist
         setBrowseError(`Could not load tracks (${msg || 'unknown error'}). Tap to retry.`)
