@@ -5,6 +5,15 @@ import type { Task, CalendarEvent, ScheduleBlock } from '@/types'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'vithusan.business@gmail.com'
 
+// Add minutes to an "HH:MM" time string, clamped to the same day (23:59 max).
+function addMinutes(time: string, minutes: number): string {
+  const [h, m] = time.split(':').map(Number)
+  const total = Math.min(h * 60 + m + minutes, 23 * 60 + 59)
+  const eh = Math.floor(total / 60)
+  const em = total % 60
+  return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`
+}
+
 export async function POST(req: Request) {
   // ── Auth ────────────────────────────────────────────────────────────────────
   const supabase = await createClient()
@@ -89,7 +98,9 @@ Hard rules:
 - If there is leftover time between blocks, add a "free" block for it (id: null)
 - Times must be "HH:MM" 24-hour format, start <= end, and blocks must be in chronological order without overlaps
 
-${context ? `User's context for today: ${context}\n` : ''}
+${context ? `User's context for today: ${context}
+If this context mentions something happening at a specific time (e.g. "convocation 12:30 till 4pm", "meeting at 3pm"), treat it as a fixed "event" block exactly like the calendar events above — immovable, and schedule tasks around it. Give it a sensible title and id: null.
+` : ''}
 Respond with ONLY valid JSON — no markdown, no explanation:
 {"blocks":[{"start":"HH:MM","end":"HH:MM","type":"event|task|free","title":"<short title>","id":"<task or event id, or null for free>"}],"notes":["<short note, max 2 sentences>"]}
 
@@ -134,6 +145,15 @@ Keep "notes" to at most 3 items, only for important callouts (e.g. a hard deadli
         title: b.title,
         id: b.id && validIds.has(b.id) ? b.id : null,
       }))
+      // For task blocks, trust the user's own time estimate over the model's
+      // arithmetic — recompute `end` from estimated_minutes so the allocated
+      // time always matches what was set on the task.
+      .map((b: ScheduleBlock) => {
+        if (b.type !== 'task' || !b.id) return b
+        const task = activeTasks.find((t) => t.id === b.id)
+        if (!task?.estimated_minutes) return b
+        return { ...b, end: addMinutes(b.start, task.estimated_minutes) }
+      })
       .sort((a: ScheduleBlock, b: ScheduleBlock) => a.start.localeCompare(b.start))
 
     const notes = Array.isArray(parsed.notes)
