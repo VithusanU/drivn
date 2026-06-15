@@ -334,6 +334,24 @@ export interface UserStore {
   removeBlockedDate: (date: string) => Promise<void>
 }
 
+// ─── Day Schedule ──────────────────────────────────────────────────────────
+
+export type ScheduleBlockType = 'event' | 'task' | 'free'
+
+export interface ScheduleBlock {
+  start: string   // "HH:MM" 24h, local time
+  end: string     // "HH:MM" 24h, local time
+  type: ScheduleBlockType
+  title: string
+  id: string | null   // matching task or event id, null for free blocks
+  category?: string | null
+}
+
+export interface ScheduleResult {
+  blocks: ScheduleBlock[]
+  notes: string[]
+}
+
 // ─── AI Store ──────────────────────────────────────────────────────────────
 
 export interface AIStore {
