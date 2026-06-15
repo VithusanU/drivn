@@ -14,6 +14,17 @@ export interface UserProfile {
   share_activity: boolean
   remind_event_1day: boolean
   remind_event_1week: boolean
+  work_end_time: string
+  work_days: number[]
+}
+
+// Day off for the day-schedule feature — a one-off date the schedule skips
+// even if it falls on a normal work day.
+export interface ScheduleBlockedDate {
+  id: string
+  user_id: string
+  blocked_date: string
+  created_at: string
 }
 
 // ─── Tasks ─────────────────────────────────────────────────────────────────
@@ -315,6 +326,12 @@ export interface UserStore {
   saveApiKey: (key: string) => Promise<'ok' | 'invalid' | 'error'>
   removeApiKey: () => Promise<void>
   toggleEventLeadReminder: (pref: 'remind_event_1day' | 'remind_event_1week') => Promise<void>
+
+  blockedDates: ScheduleBlockedDate[]
+  updateScheduleSettings: (settings: { work_end_time?: string; work_days?: number[] }) => Promise<void>
+  fetchBlockedDates: () => Promise<void>
+  addBlockedDate: (date: string) => Promise<void>
+  removeBlockedDate: (date: string) => Promise<void>
 }
 
 // ─── AI Store ──────────────────────────────────────────────────────────────

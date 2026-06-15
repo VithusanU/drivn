@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { createClient } from '@/lib/supabase/client'
 import { saveAccount } from '@/lib/savedAccounts'
-import type { UserStore, UserProfile, UserStreak } from '@/types'
+import type { UserStore, UserProfile, UserStreak, ScheduleBlockedDate } from '@/types'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'vithusan.business@gmail.com'
 const BETA_MODE_KEY = 'drivn:betaMode'
@@ -12,6 +12,7 @@ export const useUserStore = create<UserStore>((set, get) => ({
   profile: null,
   streak: null,
   isLoading: false,
+  blockedDates: [],
   betaModeEnabled:
     typeof window !== 'undefined'
       ? localStorage.getItem(BETA_MODE_KEY) === 'true'
@@ -150,5 +151,65 @@ export const useUserStore = create<UserStore>((set, get) => ({
     }))
 
     await supabase.from('user_profiles').update({ [pref]: next }).eq('id', user.id)
+  },
+
+  updateScheduleSettings: async (settings) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    set((state) => ({
+      profile: state.profile ? { ...state.profile, ...settings } : null,
+    }))
+
+    await supabase.from('user_profiles').update(settings).eq('id', user.id)
+  },
+
+  fetchBlockedDates: async () => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data } = await supabase
+      .from('schedule_blocked_dates')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('blocked_date', { ascending: true })
+
+    if (data) set({ blockedDates: data as ScheduleBlockedDate[] })
+  },
+
+  addBlockedDate: async (date) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data } = await supabase
+      .from('schedule_blocked_dates')
+      .insert({ user_id: user.id, blocked_date: date })
+      .select()
+      .single()
+
+    if (data) {
+      set((state) => ({
+        blockedDates: [...state.blockedDates, data as ScheduleBlockedDate]
+          .sort((a, b) => a.blocked_date.localeCompare(b.blocked_date)),
+      }))
+    }
+  },
+
+  removeBlockedDate: async (date) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    set((state) => ({
+      blockedDates: state.blockedDates.filter((d) => d.blocked_date !== date),
+    }))
+
+    await supabase.from('schedule_blocked_dates')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('blocked_date', date)
   },
 }))

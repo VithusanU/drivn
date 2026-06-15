@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap, Key, X, Camera, Link2, Loader2, Info, CalendarDays, Copy } from 'lucide-react'
+import { LogOut, Bell, BellOff, Clock, Heart, Sun, Moon, Check, ChevronDown, Smartphone, Repeat, Star, PlayCircle, Plus, Sparkles, Zap, Key, X, Camera, Link2, Loader2, Info, CalendarDays, Copy, CalendarOff, CalendarCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/stores/userStore'
 import { cn } from '@/lib/utils'
@@ -29,6 +29,11 @@ export default function ProfilePage() {
   const toggleEventLeadReminder = useUserStore((s) => s.toggleEventLeadReminder)
   const remindEvent1Day = profile?.remind_event_1day ?? true
   const remindEvent1Week = profile?.remind_event_1week ?? true
+  const blockedDates = useUserStore((s) => s.blockedDates)
+  const fetchBlockedDates = useUserStore((s) => s.fetchBlockedDates)
+  const addBlockedDate = useUserStore((s) => s.addBlockedDate)
+  const removeBlockedDate = useUserStore((s) => s.removeBlockedDate)
+  const updateScheduleSettings = useUserStore((s) => s.updateScheduleSettings)
   const router = useRouter()
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -40,6 +45,13 @@ export default function ProfilePage() {
   const [savingTime, setSavingTime] = useState(false)
   const [openGuide, setOpenGuide] = useState<string | null>(null)
   const [showChangelog, setShowChangelog] = useState(false)
+
+  // Schedule settings (finish-by time, work days, days off)
+  const [workEndTime, setWorkEndTime] = useState('')
+  const [showWorkEndPicker, setShowWorkEndPicker] = useState(false)
+  const [savingWorkEnd, setSavingWorkEnd] = useState(false)
+  const [showBlockedDateInput, setShowBlockedDateInput] = useState(false)
+  const [newBlockedDate, setNewBlockedDate] = useState('')
   const [calUrl, setCalUrl] = useState<string | null>(null)
   const [calLoading, setCalLoading] = useState(false)
   const [calCopied, setCalCopied] = useState(false)
@@ -80,7 +92,12 @@ export default function ProfilePage() {
     getReminderTime().then((t) => { if (t) setReminderTime(t.slice(0, 5)) })
     setSavedAccounts(getSavedAccounts())
     fetchBetaRequest()
+    fetchBlockedDates()
   }, [])
+
+  useEffect(() => {
+    if (profile?.work_end_time) setWorkEndTime(profile.work_end_time.slice(0, 5))
+  }, [profile?.work_end_time])
 
   const fetchBetaRequest = async () => {
     const supabase = createClient()
@@ -238,6 +255,31 @@ export default function ProfilePage() {
     await saveReminderTime(reminderTime)
     setSavingTime(false)
     setShowTimePicker(false)
+  }
+
+  const workDays = profile?.work_days ?? [0, 1, 2, 3, 4, 5, 6]
+
+  const handleToggleWorkDay = (day: number) => {
+    const next = workDays.includes(day)
+      ? workDays.filter((d) => d !== day)
+      : [...workDays, day].sort()
+    if (next.length === 0) return // always leave at least one work day
+    updateScheduleSettings({ work_days: next })
+  }
+
+  const handleSaveWorkEndTime = async () => {
+    if (!workEndTime) return
+    setSavingWorkEnd(true)
+    await updateScheduleSettings({ work_end_time: workEndTime })
+    setSavingWorkEnd(false)
+    setShowWorkEndPicker(false)
+  }
+
+  const handleAddBlockedDate = async () => {
+    if (!newBlockedDate) return
+    await addBlockedDate(newBlockedDate)
+    setNewBlockedDate('')
+    setShowBlockedDateInput(false)
   }
 
   const initials = profile?.full_name
@@ -439,6 +481,139 @@ export default function ProfilePage() {
             {mounted ? (resolvedTheme === 'dark' ? 'Dark' : 'Light') : '—'}
           </span>
         </button>
+      </div>
+
+      {/* Schedule */}
+      <p className="text-[10px] font-medium tracking-[0.12em] uppercase text-muted-foreground mb-3 mt-8">
+        Schedule
+      </p>
+      <div className="rounded-2xl border border-border overflow-hidden">
+
+        {/* Finish work by */}
+        <div className="border-b border-border/50">
+          <button
+            onClick={() => setShowWorkEndPicker((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3.5 text-sm text-foreground/65 hover:bg-secondary/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <Clock className="w-4 h-4 text-muted-foreground" />
+              <span>Finish work by</span>
+            </div>
+            <span className="text-muted-foreground/50 text-xs">
+              {workEndTime || '—'}
+            </span>
+          </button>
+
+          {showWorkEndPicker && (
+            <div className="px-4 pb-4 flex items-center gap-2">
+              <input
+                type="time"
+                value={workEndTime}
+                onChange={(e) => setWorkEndTime(e.target.value)}
+                className={cn(
+                  'flex-1 px-3 py-2 rounded-xl border border-border/50 text-[13px]',
+                  'bg-background text-foreground/70 outline-none focus:border-primary/40',
+                  '[color-scheme:dark]'
+                )}
+              />
+              <button
+                onClick={handleSaveWorkEndTime}
+                disabled={savingWorkEnd || !workEndTime}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-[13px] disabled:opacity-50"
+              >
+                <Check className="w-3.5 h-3.5" />
+                {savingWorkEnd ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Work days */}
+        <div className="px-4 py-3.5 border-b border-border/50">
+          <div className="flex items-center gap-3 mb-3">
+            <CalendarCheck className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm text-foreground/65">Work days</span>
+          </div>
+          <div className="flex items-center gap-1.5 pl-7">
+            {WEEKDAY_LABELS.map(({ day, label }) => {
+              const active = workDays.includes(day)
+              return (
+                <button
+                  key={day}
+                  onClick={() => handleToggleWorkDay(day)}
+                  className={cn(
+                    'w-8 h-8 rounded-full text-[12px] font-medium transition-colors',
+                    active
+                      ? 'bg-primary/15 text-primary border border-primary/30'
+                      : 'bg-secondary/50 text-muted-foreground/40 border border-transparent'
+                  )}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Days off */}
+        <div className="px-4 py-3.5">
+          <div className="flex items-start gap-3">
+            <CalendarOff className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-foreground/65">Days off</p>
+              {blockedDates.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {blockedDates.map((d) => (
+                    <div
+                      key={d.id}
+                      className="flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-secondary/50 border border-border/50 text-[11px] text-muted-foreground/70"
+                    >
+                      {formatBlockedDate(d.blocked_date)}
+                      <button
+                        onClick={() => removeBlockedDate(d.blocked_date)}
+                        className="text-muted-foreground/40 hover:text-destructive/70 transition-colors"
+                        aria-label="Remove day off"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showBlockedDateInput ? (
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="date"
+                    value={newBlockedDate}
+                    onChange={(e) => setNewBlockedDate(e.target.value)}
+                    className={cn(
+                      'flex-1 px-3 py-2 rounded-xl border border-border/50 text-[13px]',
+                      'bg-background text-foreground/70 outline-none focus:border-primary/40',
+                      '[color-scheme:dark]'
+                    )}
+                  />
+                  <button
+                    onClick={handleAddBlockedDate}
+                    disabled={!newBlockedDate}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-[13px] disabled:opacity-50"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Add
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowBlockedDateInput(true)}
+                  className="flex items-center gap-1.5 mt-2 text-[12px] text-primary/70 hover:text-primary transition-colors"
+                >
+                  <Plus className="w-3 h-3" />
+                  Add a day off
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Beta */}
@@ -976,6 +1151,23 @@ export default function ProfilePage() {
       </AnimatePresence>
     </div>
   )
+}
+
+const WEEKDAY_LABELS = [
+  { day: 0, label: 'S' },
+  { day: 1, label: 'M' },
+  { day: 2, label: 'T' },
+  { day: 3, label: 'W' },
+  { day: 4, label: 'T' },
+  { day: 5, label: 'F' },
+  { day: 6, label: 'S' },
+]
+
+// blocked_date is a "YYYY-MM-DD" string — parse as local date components so
+// it doesn't shift a day when formatted in negative UTC-offset timezones.
+function formatBlockedDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return format(new Date(y, m - 1, d), 'MMM d')
 }
 
 const GUIDE_ITEMS = [
