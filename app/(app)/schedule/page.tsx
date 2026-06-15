@@ -41,11 +41,24 @@ function todayISO(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// Today + next 6 days, as "YYYY-MM-DD" local-date strings
+function getWeekDates(): string[] {
+  const dates: string[] = []
+  const now = new Date()
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i)
+    dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+  }
+  return dates
+}
+
 export default function SchedulePage() {
   const profile = useUserStore((s) => s.profile)
   const fetchProfile = useUserStore((s) => s.fetchProfile)
   const blockedDates = useUserStore((s) => s.blockedDates)
   const fetchBlockedDates = useUserStore((s) => s.fetchBlockedDates)
+
+  const updateStreak = useUserStore((s) => s.updateStreak)
 
   const tasks = useTaskStore((s) => s.tasks)
   const fetchTasks = useTaskStore((s) => s.fetchTasks)
@@ -64,6 +77,8 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasGenerated, setHasGenerated] = useState(false)
+  const [viewMode, setViewMode] = useState<'today' | 'week'>('today')
+  const [completingIds, setCompletingIds] = useState<Set<string>>(new Set())
 
   const hasBetaAccess = profile?.beta_access === true
   const hasOwnKey = !!profile?.anthropic_key_masked
@@ -134,8 +149,12 @@ export default function SchedulePage() {
   }, [contextText]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCompleteTask = async (taskId: string) => {
+    setCompletingIds((prev) => new Set(prev).add(taskId))
     await completeTask(taskId)
-    setBlocks((prev) => prev.filter((b) => b.id !== taskId))
+    await updateStreak()
+    setTimeout(() => {
+      setBlocks((prev) => prev.filter((b) => b.id !== taskId))
+    }, 400)
   }
 
   return (
@@ -164,8 +183,28 @@ export default function SchedulePage() {
         )}
       </div>
 
+      {/* View toggle */}
+      {canUseAI && (
+        <div className="flex gap-1 p-1 rounded-xl bg-secondary/40 w-fit">
+          {(['today', 'week'] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              className={cn(
+                'px-3.5 py-1.5 rounded-lg text-[12px] font-medium transition-colors',
+                viewMode === mode
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {mode === 'today' ? 'Today' : 'This week'}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Day context — feeds into the AI schedule */}
-      {canUseAI && !isDayOff && <DayContext />}
+      {canUseAI && viewMode === 'today' && !isDayOff && <DayContext />}
 
       {/* Locked: AI-only feature */}
       {!canUseAI && (
@@ -192,7 +231,7 @@ export default function SchedulePage() {
       )}
 
       {/* Day off */}
-      {canUseAI && isDayOff && (
+      {canUseAI && viewMode === 'today' && isDayOff && (
         <div className="rounded-2xl border border-border bg-card p-6 text-center">
           <div className="w-10 h-10 rounded-full bg-secondary/60 flex items-center justify-center mx-auto mb-3">
             <CalendarOff className="w-4 h-4 text-muted-foreground" />
@@ -208,7 +247,7 @@ export default function SchedulePage() {
       )}
 
       {/* Loading skeleton (first load only) */}
-      {canUseAI && !isDayOff && loading && blocks.length === 0 && (
+      {canUseAI && viewMode === 'today' && !isDayOff && loading && blocks.length === 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-1.5 mb-1">
             <Sparkles className="w-3 h-3 text-primary/60 animate-pulse" />
@@ -221,7 +260,7 @@ export default function SchedulePage() {
       )}
 
       {/* Error */}
-      {canUseAI && !isDayOff && error && (
+      {canUseAI && viewMode === 'today' && !isDayOff && error && (
         <div className="rounded-2xl border border-destructive/25 bg-destructive/5 p-5 text-center">
           <p className="text-sm font-medium text-destructive mb-1">Couldn&apos;t build your schedule</p>
           <p className="text-[12px] text-muted-foreground mb-3">{error}</p>
@@ -235,7 +274,7 @@ export default function SchedulePage() {
       )}
 
       {/* Empty */}
-      {canUseAI && !isDayOff && !loading && !error && hasGenerated && blocks.length === 0 && (
+      {canUseAI && viewMode === 'today' && !isDayOff && !loading && !error && hasGenerated && blocks.length === 0 && (
         <div className="rounded-2xl border border-border bg-card p-6 text-center">
           <div className="text-2xl mb-2">✨</div>
           <p className="text-sm font-medium text-foreground">Nothing to schedule</p>
@@ -246,7 +285,7 @@ export default function SchedulePage() {
       )}
 
       {/* Timeline */}
-      {canUseAI && !isDayOff && blocks.length > 0 && (
+      {canUseAI && viewMode === 'today' && !isDayOff && blocks.length > 0 && (
         <div className="space-y-2">
           <AnimatePresence initial={false}>
             {blocks.map((block, i) => (
@@ -270,10 +309,17 @@ export default function SchedulePage() {
                 {block.type === 'task' ? (
                   <button
                     onClick={() => block.id && handleCompleteTask(block.id)}
-                    className="flex-shrink-0 text-muted-foreground/40 hover:text-drivn-green transition-colors"
+                    className={cn(
+                      'flex-shrink-0 transition-colors',
+                      block.id && completingIds.has(block.id)
+                        ? 'text-drivn-green'
+                        : 'text-muted-foreground/40 hover:text-drivn-green'
+                    )}
                     aria-label="Mark task complete"
                   >
-                    <Circle className="w-4.5 h-4.5" />
+                    {block.id && completingIds.has(block.id)
+                      ? <CheckCircle2 className="w-4.5 h-4.5" />
+                      : <Circle className="w-4.5 h-4.5" />}
                   </button>
                 ) : block.type === 'event' ? (
                   <span className="flex-shrink-0 text-base">
@@ -286,7 +332,8 @@ export default function SchedulePage() {
                 <div className="flex-1 min-w-0">
                   <p className={cn(
                     'text-[13px] font-medium truncate',
-                    block.type === 'free' ? 'text-muted-foreground/50' : 'text-foreground'
+                    block.type === 'free' ? 'text-muted-foreground/50' : 'text-foreground',
+                    block.id && completingIds.has(block.id) && 'line-through text-muted-foreground/40'
                   )}>
                     {block.title}
                   </p>
@@ -311,7 +358,7 @@ export default function SchedulePage() {
       )}
 
       {/* AI notes */}
-      {canUseAI && !isDayOff && notes.length > 0 && (
+      {canUseAI && viewMode === 'today' && !isDayOff && notes.length > 0 && (
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 space-y-1.5">
           <div className="flex items-center gap-1.5">
             <Sparkles className="w-3 h-3 text-primary/60" />
@@ -324,10 +371,104 @@ export default function SchedulePage() {
       )}
 
       {/* Completed-all-tasks indicator */}
-      {canUseAI && !isDayOff && hasGenerated && blocks.length > 0 && !blocks.some((b) => b.type === 'task') && (
+      {canUseAI && viewMode === 'today' && !isDayOff && hasGenerated && blocks.length > 0 && !blocks.some((b) => b.type === 'task') && (
         <div className="flex items-center gap-2 text-[12px] text-muted-foreground/60">
           <CheckCircle2 className="w-3.5 h-3.5" />
           No tasks slotted in — just your calendar today.
+        </div>
+      )}
+
+      {/* Week view */}
+      {canUseAI && viewMode === 'week' && (
+        <div className="space-y-2.5">
+          {getWeekDates().map((dateStr, i) => {
+            const [y, m, d] = dateStr.split('-').map(Number)
+            const dateObj = new Date(y, m - 1, d)
+            const dayOfWeek = dateObj.getDay()
+            const dayOff = !workDays.includes(dayOfWeek) || blockedDates.some((b) => b.blocked_date === dateStr)
+
+            const dayEvents = events.filter((e) => e.event_date === dateStr)
+            const dayTasks = tasks.filter((t) => t.status === 'active' && t.due_date === dateStr)
+
+            const items = [
+              ...dayEvents.map((e) => ({
+                kind: 'event' as const,
+                id: e.id,
+                time: e.event_time,
+                title: e.title,
+                category: e.category as string | null,
+                minutes: null as number | null,
+              })),
+              ...dayTasks.map((t) => ({
+                kind: 'task' as const,
+                id: t.id,
+                time: t.due_time,
+                title: t.title,
+                category: null as string | null,
+                minutes: t.estimated_minutes,
+              })),
+            ].sort((a, b) => (a.time ?? '99:99').localeCompare(b.time ?? '99:99'))
+
+            return (
+              <div key={dateStr} className="rounded-2xl border border-border bg-card overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
+                  <p className="text-[12px] font-medium text-foreground">
+                    {i === 0 ? 'Today' : format(dateObj, 'EEEE')}
+                    <span className="text-muted-foreground/40 ml-1.5">{format(dateObj, 'MMM d')}</span>
+                  </p>
+                  {dayOff && (
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-secondary/60 text-muted-foreground/50">
+                      Day off
+                    </span>
+                  )}
+                </div>
+                {items.length === 0 ? (
+                  <p className="px-4 py-3 text-[12px] text-muted-foreground/40">Nothing scheduled</p>
+                ) : (
+                  <div className="divide-y divide-border/30">
+                    {items.map((item) => (
+                      <div key={`${item.kind}-${item.id}`} className="flex items-center gap-3 px-4 py-2.5">
+                        <span className="flex-shrink-0 w-[68px] text-[11px] text-muted-foreground/50">
+                          {item.time ? formatBlockTime(item.time) : '—'}
+                        </span>
+                        {item.kind === 'task' ? (
+                          <button
+                            onClick={() => handleCompleteTask(item.id)}
+                            className={cn(
+                              'flex-shrink-0 transition-colors',
+                              completingIds.has(item.id)
+                                ? 'text-drivn-green'
+                                : 'text-muted-foreground/40 hover:text-drivn-green'
+                            )}
+                            aria-label="Mark task complete"
+                          >
+                            {completingIds.has(item.id)
+                              ? <CheckCircle2 className="w-4 h-4" />
+                              : <Circle className="w-4 h-4" />}
+                          </button>
+                        ) : (
+                          <span className="flex-shrink-0 text-base">
+                            {EVENT_CATEGORY_EMOJI[item.category ?? 'other'] ?? '📌'}
+                          </span>
+                        )}
+                        <span className={cn(
+                          'text-[13px] truncate flex-1',
+                          completingIds.has(item.id) ? 'line-through text-muted-foreground/40' : 'text-foreground'
+                        )}>
+                          {item.title}
+                        </span>
+                        {item.minutes && (
+                          <span className="flex-shrink-0 text-[11px] text-muted-foreground/40">
+                            {formatEstimatedTime(item.minutes)}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
