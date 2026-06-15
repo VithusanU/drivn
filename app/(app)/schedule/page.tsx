@@ -8,6 +8,8 @@ import { RefreshCw, Sparkles, Lock, CalendarOff, CheckCircle2, Circle, Coffee, A
 import { useUserStore } from '@/stores/userStore'
 import { useTaskStore } from '@/stores/taskStore'
 import { useEventStore } from '@/stores/eventStore'
+import { useContextStore } from '@/stores/contextStore'
+import DayContext from '@/components/dashboard/DayContext'
 import { formatEstimatedTime } from '@/lib/engine/recommendation'
 import { cn } from '@/lib/utils'
 import type { ScheduleBlock } from '@/types'
@@ -54,6 +56,9 @@ export default function SchedulePage() {
   const fetchEvents = useEventStore((s) => s.fetchEvents)
   const hasFetchedEvents = useEventStore((s) => s.hasFetched)
 
+  const contextText = useContextStore((s) => s.contextText)
+  const hydrateContext = useContextStore((s) => s.hydrate)
+
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([])
   const [notes, setNotes] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -72,6 +77,7 @@ export default function SchedulePage() {
     fetchBlockedDates()
     fetchTasks()
     fetchEvents()
+    hydrateContext()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const today = todayISO()
@@ -95,6 +101,7 @@ export default function SchedulePage() {
           events: todaysEvents,
           now: nowHHMM(),
           workEndTime: (profile.work_end_time ?? '18:00').slice(0, 5),
+          context: contextText || undefined,
         }),
       })
       if (!res.ok) {
@@ -110,7 +117,7 @@ export default function SchedulePage() {
       setLoading(false)
       setHasGenerated(true)
     }
-  }, [profile, tasks, events, today])
+  }, [profile, tasks, events, today, contextText])
 
   // Auto-generate once profile + tasks + events have loaded
   useEffect(() => {
@@ -118,6 +125,13 @@ export default function SchedulePage() {
       generateSchedule()
     }
   }, [canUseAI, isDayOff, hasGenerated, profile, hasFetchedTasks, hasFetchedEvents, generateSchedule])
+
+  // Re-plan whenever the user updates today's context (e.g. "convocation 12:30-4pm")
+  useEffect(() => {
+    if (canUseAI && !isDayOff && hasGenerated) {
+      generateSchedule()
+    }
+  }, [contextText]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCompleteTask = async (taskId: string) => {
     await completeTask(taskId)
@@ -149,6 +163,9 @@ export default function SchedulePage() {
           </button>
         )}
       </div>
+
+      {/* Day context — feeds into the AI schedule */}
+      {canUseAI && !isDayOff && <DayContext />}
 
       {/* Locked: AI-only feature */}
       {!canUseAI && (
