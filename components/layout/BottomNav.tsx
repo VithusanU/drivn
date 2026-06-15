@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Heart, User, ShieldCheck, BarChart2, Users } from 'lucide-react'
+import { Home, Heart, User, ShieldCheck, BarChart2, Users, CalendarClock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { APP_VERSION } from '@/lib/version'
 import ThemeToggle from './ThemeToggle'
@@ -12,6 +12,7 @@ import { useUserStore } from '@/stores/userStore'
 const BASE_NAV = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/habits', label: 'Habits', icon: Heart },
+  { href: '/schedule', label: 'Schedule', icon: CalendarClock },
   { href: '/friends', label: 'Friends', icon: Users },
   { href: '/summary', label: 'Summary', icon: BarChart2 },
   { href: '/profile', label: 'Profile', icon: User },
