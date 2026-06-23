@@ -100,7 +100,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             risking content getting tucked behind a taller-than-expected bar
             on iPhones with a home indicator. */}
         <div className={cn(
-          'mx-auto px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-12 pt-0',
+          'mx-auto px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-12 pt-safe md:pt-0',
           // Home gets a wider stage at lg:/xl: so its 65/35 grid has room to
           // breathe; every other route stays at the original max-w-2xl.
           isHome ? 'max-w-2xl lg:max-w-5xl xl:max-w-6xl' : 'max-w-2xl'
