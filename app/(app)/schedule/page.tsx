@@ -158,7 +158,7 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="px-4 pt-6 pb-6 space-y-6">
+    <div className="px-4 pt-[max(env(safe-area-inset-top),1.5rem)] pb-6 space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
