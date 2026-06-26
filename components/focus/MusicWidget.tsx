@@ -6,6 +6,7 @@ import { SkipBack, SkipForward, Play, Pause, Music, Unlink, ListMusic, ChevronLe
 import {
   startSpotifyAuth, disconnectSpotify,
   getUserPlaylists, getPlaylistTracks, getLikedTracks, playContext, playTracks,
+  spotifySeek,
   LIKED_SONGS_ID,
   type SpotifyPlaylist, type SpotifyPlaylistTrack,
 } from '@/lib/spotify'
@@ -37,6 +38,21 @@ export default function MusicWidget() {
   const [selectedPlaylist, setSelectedPlaylist] = useState<SpotifyPlaylist | null>(null)
   const [browseLoading, setBrowseLoading] = useState(false)
   const [browseError, setBrowseError] = useState('')
+  const [localProgressMs, setLocalProgressMs] = useState(0)
+
+  // Sync local progress from store on state change events (play/pause/skip/seek)
+  useEffect(() => {
+    setLocalProgressMs(track?.progressMs ?? 0)
+  }, [track?.progressMs, track?.name])
+
+  // Advance progress every second while playing
+  useEffect(() => {
+    if (!track?.isPlaying) return
+    const id = setInterval(() => {
+      setLocalProgressMs((prev) => prev + 1000)
+    }, 1000)
+    return () => clearInterval(id)
+  }, [track?.isPlaying])
 
   // Access request state
   const [requestStatus, setRequestStatus] = useState<RequestStatus>('loading')
@@ -531,11 +547,26 @@ export default function MusicWidget() {
                   </div>
 
                   {track && track.durationMs > 0 && (
-                    <div className="h-0.5 rounded-full bg-border overflow-hidden">
+                    <div className="space-y-1">
                       <div
-                        className="h-full bg-[#1DB954] rounded-full"
-                        style={{ width: `${(track.progressMs / track.durationMs) * 100}%` }}
-                      />
+                        className="h-1 rounded-full bg-border cursor-pointer relative"
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect()
+                          const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+                          const newMs = Math.floor(pct * track.durationMs)
+                          setLocalProgressMs(newMs)
+                          spotifySeek(newMs)
+                        }}
+                      >
+                        <div
+                          className="h-full bg-[#1DB954] rounded-full pointer-events-none"
+                          style={{ width: `${Math.min(100, (localProgressMs / track.durationMs) * 100)}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground/40">
+                        <span>{formatTime(localProgressMs)}</span>
+                        <span>{formatTime(track.durationMs)}</span>
+                      </div>
                     </div>
                   )}
 
@@ -564,6 +595,13 @@ export default function MusicWidget() {
       </AnimatePresence>
     </div>
   )
+}
+
+function formatTime(ms: number): string {
+  const totalSec = Math.floor(ms / 1000)
+  const m = Math.floor(totalSec / 60)
+  const s = totalSec % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
 }
 
 function SpotifyIcon() {
