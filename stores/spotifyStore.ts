@@ -79,7 +79,18 @@ export const useSpotifyStore = create<SpotifyStore>((set, get) => ({
   ready: false,
 
   initFromStorage: () => {
-    set({ connected: isSpotifyConnected() })
+    const wasConnected = get().connected
+    const isNowConnected = isSpotifyConnected()
+    set({ connected: isNowConnected })
+    // If the token was cleared externally while the tab was hidden (expired/
+    // revoked), tear down the stale SDK player so it stops trying to play
+    // with a dead token.
+    if (wasConnected && !isNowConnected && _player) {
+      _player.disconnect()
+      _player = null
+      _initializing = false
+      set({ ready: false, track: null })
+    }
   },
 
   setConnected: (v) => set({ connected: v }),
@@ -99,7 +110,13 @@ export const useSpotifyStore = create<SpotifyStore>((set, get) => ({
         name: 'Drivn',
         getOAuthToken: async (cb) => {
           const token = await getSpotifyToken()
-          if (token) cb(token)
+          if (token) {
+            cb(token)
+          } else {
+            // Refresh failed mid-session — destroy the player cleanly so the
+            // widget shows the reconnect UI instead of hanging silently.
+            get().destroyPlayer()
+          }
         },
         volume: 0.5,
       })
@@ -128,7 +145,10 @@ export const useSpotifyStore = create<SpotifyStore>((set, get) => ({
         })
       })
 
-      player.addListener('authentication_error', () => set({ ready: false }))
+      // Auth errors mean the token is no longer valid — fully disconnect so
+      // the reconnect UI appears. Account/init errors aren't auth problems so
+      // we just mark the player not ready without clearing the connection.
+      player.addListener('authentication_error', () => get().destroyPlayer())
       player.addListener('account_error', () => set({ ready: false }))
       player.addListener('initialization_error', () => set({ ready: false }))
 
