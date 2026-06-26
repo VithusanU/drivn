@@ -145,11 +145,21 @@ export async function refreshSpotifyToken(): Promise<string | null> {
   return data.access_token
 }
 
+// Shared promise so concurrent calls near expiry all wait on the same refresh
+// instead of each firing an independent request (which races and may get a
+// revoked token on the second+ call).
+let _refreshPromise: Promise<string | null> | null = null
+
 export async function getSpotifyToken(): Promise<string | null> {
   const token = localStorage.getItem('spotify_access_token')
   const expiresAt = Number(localStorage.getItem('spotify_expires_at') ?? 0)
   if (!token) return null
-  if (Date.now() > expiresAt - 60_000) return refreshSpotifyToken()
+  if (Date.now() > expiresAt - 60_000) {
+    if (!_refreshPromise) {
+      _refreshPromise = refreshSpotifyToken().finally(() => { _refreshPromise = null })
+    }
+    return _refreshPromise
+  }
   return token
 }
 
@@ -172,7 +182,9 @@ async function spotifyFetch(path: string, options?: RequestInit) {
   } catch {
     return null
   }
-  if (!token) return null
+  // null means the refresh failed and tokens were cleared — treat as 401 so
+  // callers throw 'unauthorized' and the widget triggers a clean disconnect.
+  if (!token) throw new Error('unauthorized')
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 15_000) // 15-second hard timeout
   try {
