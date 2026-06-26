@@ -376,3 +376,7 @@ export async function playTracks(uris: string[], offsetIndex = 0) {
     body: JSON.stringify({ uris, offset: { position: offsetIndex } }),
   })
 }
+
+export async function spotifySeek(positionMs: number) {
+  await spotifyFetch(`/me/player/seek?position_ms=${Math.floor(positionMs)}`, { method: 'PUT' })
+}
