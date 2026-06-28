@@ -41,6 +41,30 @@ function todayISO(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// Returns true if a recurring event should appear on the given date
+function eventFallsOnDate(
+  event: { event_date: string; recurrence: string; recurrence_days: number | null },
+  dateStr: string
+): boolean {
+  if (event.recurrence === 'none') return event.event_date === dateStr
+  if (dateStr < event.event_date) return false
+  if (event.event_date === dateStr) return true
+  const [by, bm, bd] = event.event_date.split('-').map(Number)
+  const [ty, tm, td] = dateStr.split('-').map(Number)
+  const base = new Date(by, bm - 1, bd)
+  const target = new Date(ty, tm - 1, td)
+  const diffDays = Math.round((target.getTime() - base.getTime()) / 86400000)
+  if (event.recurrence === 'weekly') return diffDays % 7 === 0
+  if (event.recurrence === 'custom' && event.recurrence_days) return diffDays % event.recurrence_days === 0
+  if (event.recurrence === 'monthly') {
+    if (base.getDate() !== target.getDate()) return false
+    const check = new Date(base)
+    while (check < target) check.setMonth(check.getMonth() + 1)
+    return check.getTime() === target.getTime()
+  }
+  return false
+}
+
 // Today + next 6 days, as "YYYY-MM-DD" local-date strings
 function getWeekDates(): string[] {
   const dates: string[] = []
@@ -107,7 +131,7 @@ export default function SchedulePage() {
     setError(null)
     try {
       const activeTasks = tasks.filter((t) => t.status === 'active')
-      const todaysEvents = events.filter((e) => e.event_date === today)
+      const todaysEvents = events.filter((e) => eventFallsOnDate(e, today))
       const res = await fetch('/api/ai-schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -387,7 +411,7 @@ export default function SchedulePage() {
             const dayOfWeek = dateObj.getDay()
             const dayOff = !workDays.includes(dayOfWeek) || blockedDates.some((b) => b.blocked_date === dateStr)
 
-            const dayEvents = events.filter((e) => e.event_date === dateStr)
+            const dayEvents = events.filter((e) => eventFallsOnDate(e, dateStr))
             const dayTasks = tasks.filter((t) => t.status === 'active' && t.due_date === dateStr)
 
             const items = [

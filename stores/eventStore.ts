@@ -21,17 +21,22 @@ function deriveEventAlarmAt(
   return new Date(y, mo - 1, d, h, mi, 0, 0).toISOString()
 }
 
+// Advance a date string by one recurrence interval (uses local-time constructor to
+// avoid UTC-midnight timezone shifting that Date.parse on "YYYY-MM-DD" can cause)
+function advanceDateStr(dateStr: string, recurrence: string, recurrenceDays: number | null): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  if (recurrence === 'weekly') date.setDate(date.getDate() + 7)
+  else if (recurrence === 'monthly') date.setMonth(date.getMonth() + 1)
+  else if (recurrence === 'custom' && recurrenceDays && recurrenceDays > 0) date.setDate(date.getDate() + recurrenceDays)
+  else date.setDate(date.getDate() + 1) // safety fallback — prevents infinite loops on unknown recurrence
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
 // Next occurrence date for recurring events
 function nextOccurrence(event: CalendarEvent): string {
-  const base = new Date(event.event_date)
-  if (event.recurrence === 'weekly') {
-    base.setDate(base.getDate() + 7)
-  } else if (event.recurrence === 'monthly') {
-    base.setMonth(base.getMonth() + 1)
-  } else if (event.recurrence === 'custom' && event.recurrence_days) {
-    base.setDate(base.getDate() + event.recurrence_days)
-  }
-  return base.toISOString().split('T')[0]
+  return advanceDateStr(event.event_date, event.recurrence, event.recurrence_days)
 }
 
 export const useEventStore = create<EventStore>((set, get) => ({
@@ -150,15 +155,23 @@ export const useEventStore = create<EventStore>((set, get) => ({
   },
 
   getUpcomingEvents: (days = 30) => {
-    // Use local date parts to avoid UTC timezone shifting dates
     const now = new Date()
     const pad = (n: number) => String(n).padStart(2, '0')
     const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
     const future = new Date(now)
     future.setDate(future.getDate() + days)
     const futureStr = `${future.getFullYear()}-${pad(future.getMonth() + 1)}-${pad(future.getDate())}`
-    return get().events.filter(
-      (e) => e.event_date >= todayStr && e.event_date <= futureStr
-    )
+    return get().events.flatMap((event) => {
+      if (event.recurrence === 'none') {
+        return event.event_date >= todayStr && event.event_date <= futureStr ? [event] : []
+      }
+      // For recurring events whose stored date is in the past, advance to the next
+      // occurrence on or after today so the event still appears in upcoming lists
+      let date = event.event_date
+      while (date < todayStr) {
+        date = advanceDateStr(date, event.recurrence, event.recurrence_days)
+      }
+      return date <= futureStr ? [{ ...event, event_date: date }] : []
+    }).sort((a, b) => a.event_date.localeCompare(b.event_date))
   },
 }))
