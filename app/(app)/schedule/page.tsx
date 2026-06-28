@@ -10,6 +10,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useEventStore } from '@/stores/eventStore'
 import { useContextStore } from '@/stores/contextStore'
 import DayContext from '@/components/dashboard/DayContext'
+import UpcomingEvents from '@/components/dashboard/UpcomingEvents'
 import { formatEstimatedTime } from '@/lib/engine/recommendation'
 import { cn } from '@/lib/utils'
 import type { ScheduleBlock } from '@/types'
@@ -495,6 +496,9 @@ export default function SchedulePage() {
           })}
         </div>
       )}
+
+      {/* Upcoming events — always visible so events can be viewed and managed from this tab */}
+      <UpcomingEvents />
     </div>
   )
 }
