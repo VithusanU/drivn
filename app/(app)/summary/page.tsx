@@ -8,12 +8,27 @@ import {
 } from 'date-fns'
 import { ChevronLeft, ChevronRight, Clock, TrendingUp, Flame, Target } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { eventFallsOnDate } from '@/lib/eventUtils'
 import { cn } from '@/lib/utils'
+
+interface EventDetail {
+  title: string
+  emoji: string
+  time: string | null
+}
 
 interface DayData {
   habits: number
   tasks: number
   eventEmojis: string[]
+  events: EventDetail[]
+}
+
+function formatTime(time: string): string {
+  const [h, m] = time.split(':').map(Number)
+  const period = h >= 12 ? 'pm' : 'am'
+  const hour = h % 12 || 12
+  return `${hour}:${String(m).padStart(2, '0')}${period}`
 }
 
 interface FocusSession {
@@ -224,31 +239,42 @@ export default function SummaryPage() {
         .gte('completed_at', startOfMonth(m).toISOString())
         .lte('completed_at', endOfMonth(m).toISOString())
         .not('completed_at', 'is', null),
+      // Fetch ALL events (no date filter) so recurring events stored before this
+      // month are still expanded correctly onto matching days within the month.
       supabase
         .from('events')
-        .select('event_date, category')
-        .gte('event_date', start)
-        .lte('event_date', end),
+        .select('event_date, category, title, event_time, recurrence, recurrence_days'),
     ])
 
+    const blank = (): DayData => ({ habits: 0, tasks: 0, eventEmojis: [], events: [] })
     const data: Record<string, DayData> = {}
 
     for (const row of habitRows ?? []) {
       const key = row.completed_date as string
-      if (!data[key]) data[key] = { habits: 0, tasks: 0, eventEmojis: [] }
+      if (!data[key]) data[key] = blank()
       data[key].habits++
     }
     for (const row of taskRows ?? []) {
       const key = format(new Date(row.completed_at as string), 'yyyy-MM-dd')
-      if (!data[key]) data[key] = { habits: 0, tasks: 0, eventEmojis: [] }
+      if (!data[key]) data[key] = blank()
       data[key].tasks++
     }
+
+    // Expand recurring events: for each event, find every day in this month it falls on
+    const monthDays = eachDayOfInterval({ start: startOfMonth(m), end: endOfMonth(m) })
     for (const row of eventRows ?? []) {
-      const key = row.event_date as string
-      if (!data[key]) data[key] = { habits: 0, tasks: 0, eventEmojis: [] }
-      const emoji = CATEGORY_EMOJI[row.category as string] ?? '📌'
-      if (!data[key].eventEmojis.includes(emoji)) {
-        data[key].eventEmojis.push(emoji)
+      const ev = row as {
+        event_date: string; category: string; title: string;
+        event_time: string | null; recurrence: string; recurrence_days: number | null
+      }
+      const emoji = CATEGORY_EMOJI[ev.category] ?? '📌'
+      for (const day of monthDays) {
+        const dayStr = format(day, 'yyyy-MM-dd')
+        if (eventFallsOnDate(ev, dayStr)) {
+          if (!data[dayStr]) data[dayStr] = blank()
+          if (!data[dayStr].eventEmojis.includes(emoji)) data[dayStr].eventEmojis.push(emoji)
+          data[dayStr].events.push({ title: ev.title, emoji, time: ev.event_time })
+        }
       }
     }
 
@@ -266,7 +292,7 @@ export default function SummaryPage() {
   const totalTasks = Object.values(dayData).reduce((s, d) => s + d.tasks, 0)
   const activeDays = Object.values(dayData).filter((d) => d.habits + d.tasks > 0).length
 
-  const selectedData = selected ? (dayData[selected] ?? { habits: 0, tasks: 0, eventEmojis: [] }) : null
+  const selectedData = selected ? (dayData[selected] ?? { habits: 0, tasks: 0, eventEmojis: [], events: [] }) : null
 
   return (
     <div className="px-4 pt-6 pb-6 space-y-6">
@@ -532,7 +558,6 @@ export default function SummaryPage() {
               const isSelected = selected === key
               const today = isToday(day)
               const isBestDay = weeklyInsight?.mostProductiveDateStr === key
-              const firstEmoji = data.eventEmojis[0] ?? null
 
               return (
                 <button
@@ -570,9 +595,11 @@ export default function SummaryPage() {
                     </div>
                   )}
 
-                  {/* Event category emoji */}
-                  {firstEmoji && (
-                    <span className="text-[8px] leading-none mt-0.5">{firstEmoji}</span>
+                  {/* Event emojis (up to 2 fit in a small cell) */}
+                  {data.eventEmojis.length > 0 && (
+                    <span className="text-[8px] leading-none mt-0.5">
+                      {data.eventEmojis.slice(0, 2).join('')}
+                    </span>
                   )}
                 </button>
               )
@@ -607,10 +634,10 @@ export default function SummaryPage() {
           <p className="text-[13px] font-medium text-foreground">
             {format(parseISO(selected), 'EEEE, MMMM d')}
           </p>
-          {selectedData.habits === 0 && selectedData.tasks === 0 && selectedData.eventEmojis.length === 0 ? (
+          {selectedData.habits === 0 && selectedData.tasks === 0 && selectedData.events.length === 0 ? (
             <p className="text-[13px] text-muted-foreground/50">No activity logged this day.</p>
           ) : (
-            <div className="flex gap-4 flex-wrap">
+            <div className="space-y-2.5">
               {selectedData.habits > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-drivn-green flex-shrink-0" />
@@ -627,12 +654,19 @@ export default function SummaryPage() {
                   </span>
                 </div>
               )}
-              {selectedData.eventEmojis.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-[14px] leading-none">{selectedData.eventEmojis.join(' ')}</span>
-                  <span className="text-[13px] text-foreground">
-                    {selectedData.eventEmojis.length} event{selectedData.eventEmojis.length !== 1 ? 's' : ''}
-                  </span>
+              {selectedData.events.length > 0 && (
+                <div className="space-y-1.5">
+                  {selectedData.events.map((ev, i) => (
+                    <div key={i} className="flex items-center gap-2.5">
+                      <span className="text-base leading-none flex-shrink-0">{ev.emoji}</span>
+                      <span className="text-[13px] text-foreground flex-1 truncate">{ev.title}</span>
+                      {ev.time && (
+                        <span className="text-[11px] text-muted-foreground/50 flex-shrink-0">
+                          {formatTime(ev.time)}
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

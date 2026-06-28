@@ -48,13 +48,11 @@ export const useEventStore = create<EventStore>((set, get) => ({
     const supabase = createClient()
     set({ isLoading: true })
     try {
-      // Fetch events from today onwards (and past 7 days in case of recurring)
-      const weekAgo = new Date()
-      weekAgo.setDate(weekAgo.getDate() - 7)
+      // Fetch ALL events with no date cutoff so recurring events created long ago
+      // are still in the store and can be expanded to future dates client-side.
       const { data, error } = await supabase
         .from('events')
         .select('*')
-        .gte('event_date', weekAgo.toISOString().split('T')[0])
         .order('event_date', { ascending: true })
       if (error) throw error
       set({ events: data ?? [], isLoading: false, hasFetched: true })

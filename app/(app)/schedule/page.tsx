@@ -11,6 +11,7 @@ import { useEventStore } from '@/stores/eventStore'
 import { useContextStore } from '@/stores/contextStore'
 import DayContext from '@/components/dashboard/DayContext'
 import UpcomingEvents from '@/components/dashboard/UpcomingEvents'
+import { eventFallsOnDate } from '@/lib/eventUtils'
 import { formatEstimatedTime } from '@/lib/engine/recommendation'
 import { cn } from '@/lib/utils'
 import type { ScheduleBlock } from '@/types'
@@ -40,30 +41,6 @@ function nowHHMM(): string {
 function todayISO(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-// Returns true if a recurring event should appear on the given date
-function eventFallsOnDate(
-  event: { event_date: string; recurrence: string; recurrence_days: number | null },
-  dateStr: string
-): boolean {
-  if (event.recurrence === 'none') return event.event_date === dateStr
-  if (dateStr < event.event_date) return false
-  if (event.event_date === dateStr) return true
-  const [by, bm, bd] = event.event_date.split('-').map(Number)
-  const [ty, tm, td] = dateStr.split('-').map(Number)
-  const base = new Date(by, bm - 1, bd)
-  const target = new Date(ty, tm - 1, td)
-  const diffDays = Math.round((target.getTime() - base.getTime()) / 86400000)
-  if (event.recurrence === 'weekly') return diffDays % 7 === 0
-  if (event.recurrence === 'custom' && event.recurrence_days) return diffDays % event.recurrence_days === 0
-  if (event.recurrence === 'monthly') {
-    if (base.getDate() !== target.getDate()) return false
-    const check = new Date(base)
-    while (check < target) check.setMonth(check.getMonth() + 1)
-    return check.getTime() === target.getTime()
-  }
-  return false
 }
 
 // Today + next 6 days, as "YYYY-MM-DD" local-date strings
