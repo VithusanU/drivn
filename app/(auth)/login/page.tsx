@@ -260,7 +260,7 @@ export default function LoginPage() {
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="mb-12 text-center"
+        className="mb-6 text-center"
       >
         <div className="flex items-center justify-center">
           <Image
@@ -272,6 +272,21 @@ export default function LoginPage() {
             priority
           />
         </div>
+      </motion.div>
+
+      {/* Value statement */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.05 }}
+        className="text-center mb-8"
+      >
+        <p className="text-[17px] font-medium text-foreground mb-1">
+          See your day organized in 60 seconds
+        </p>
+        <p className="text-[13px] text-muted-foreground max-w-[280px] mx-auto leading-relaxed">
+          AI-powered daily planning that turns your task list into a clear, achievable schedule.
+        </p>
       </motion.div>
 
       {/* Auth card */}

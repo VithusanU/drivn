@@ -9,6 +9,7 @@ import { useUserStore } from '@/stores/userStore'
 import { useAIStore } from '@/stores/aiStore'
 import { formatEstimatedTime } from '@/lib/engine/recommendation'
 import { cn } from '@/lib/utils'
+import { AI_TRIAL_DAYS } from '@/lib/constants'
 
 export default function QuickWins() {
   const tasks = useTaskStore((s) => s.tasks)
@@ -20,7 +21,10 @@ export default function QuickWins() {
   const profile = useUserStore((s) => s.profile)
   const hasBetaAccess = profile?.beta_access === true
   const hasOwnKey = !!profile?.anthropic_key_masked
-  const canUseAI = hasBetaAccess || hasOwnKey
+  const isInTrial = profile?.created_at
+    ? (Date.now() - new Date(profile.created_at).getTime()) < AI_TRIAL_DAYS * 24 * 60 * 60 * 1000
+    : false
+  const canUseAI = hasBetaAccess || hasOwnKey || isInTrial
   const aiRecommendation = useAIStore((s) => s.recommendation)
 
   const isAIMode = betaModeEnabled && canUseAI

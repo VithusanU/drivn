@@ -14,6 +14,8 @@ import UpcomingEvents from '@/components/dashboard/UpcomingEvents'
 import { eventFallsOnDate } from '@/lib/eventUtils'
 import { formatEstimatedTime } from '@/lib/engine/recommendation'
 import { cn } from '@/lib/utils'
+import { AI_TRIAL_DAYS } from '@/lib/constants'
+import { Analytics } from '@/lib/analytics'
 import type { ScheduleBlock } from '@/types'
 
 const EVENT_CATEGORY_EMOJI: Record<string, string> = {
@@ -23,8 +25,6 @@ const EVENT_CATEGORY_EMOJI: Record<string, string> = {
   health: '💊',
   other: '📌',
 }
-
-const AI_TRIAL_DAYS = 7
 
 function formatBlockTime(time: string): string {
   const [h, m] = time.split(':').map(Number)
@@ -81,6 +81,7 @@ export default function SchedulePage() {
   const [hasGenerated, setHasGenerated] = useState(false)
   const [viewMode, setViewMode] = useState<'today' | 'week'>('today')
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set())
+  const [dayOffOverride, setDayOffOverride] = useState(false)
 
   const hasBetaAccess = profile?.beta_access === true
   const hasOwnKey = !!profile?.anthropic_key_masked
@@ -102,6 +103,7 @@ export default function SchedulePage() {
   const workDays = profile?.work_days ?? [0, 1, 2, 3, 4, 5, 6]
   const isBlockedDate = blockedDates.some((d) => d.blocked_date === today)
   const isDayOff = !workDays.includes(todayDay) || isBlockedDate
+  const effectiveDayOff = isDayOff && !dayOffOverride
 
   const generateSchedule = useCallback(async () => {
     if (!profile) return
@@ -128,6 +130,7 @@ export default function SchedulePage() {
       const data = await res.json()
       setBlocks(data.blocks ?? [])
       setNotes(data.notes ?? [])
+      Analytics.aiScheduleGenerated()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
@@ -138,14 +141,14 @@ export default function SchedulePage() {
 
   // Auto-generate once profile + tasks + events have loaded
   useEffect(() => {
-    if (canUseAI && !isDayOff && !hasGenerated && profile && hasFetchedTasks && hasFetchedEvents) {
+    if (canUseAI && !effectiveDayOff && !hasGenerated && profile && hasFetchedTasks && hasFetchedEvents) {
       generateSchedule()
     }
-  }, [canUseAI, isDayOff, hasGenerated, profile, hasFetchedTasks, hasFetchedEvents, generateSchedule])
+  }, [canUseAI, effectiveDayOff, hasGenerated, profile, hasFetchedTasks, hasFetchedEvents, generateSchedule])
 
   // Re-plan whenever the user updates today's context (e.g. "convocation 12:30-4pm")
   useEffect(() => {
-    if (canUseAI && !isDayOff && hasGenerated) {
+    if (canUseAI && !effectiveDayOff && hasGenerated) {
       generateSchedule()
     }
   }, [contextText]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -169,7 +172,7 @@ export default function SchedulePage() {
             {format(new Date(), 'EEEE, MMM d')}
           </p>
         </div>
-        {canUseAI && !isDayOff && (
+        {canUseAI && !effectiveDayOff && (
           <button
             onClick={generateSchedule}
             disabled={loading}
@@ -206,7 +209,7 @@ export default function SchedulePage() {
       )}
 
       {/* Day context — feeds into the AI schedule */}
-      {canUseAI && viewMode === 'today' && !isDayOff && <DayContext />}
+      {canUseAI && viewMode === 'today' && !effectiveDayOff && <DayContext />}
 
       {/* Locked: AI-only feature */}
       {!canUseAI && (
@@ -233,23 +236,33 @@ export default function SchedulePage() {
       )}
 
       {/* Day off */}
-      {canUseAI && viewMode === 'today' && isDayOff && (
+      {canUseAI && viewMode === 'today' && effectiveDayOff && (
         <div className="rounded-2xl border border-border bg-card p-6 text-center">
           <div className="w-10 h-10 rounded-full bg-secondary/60 flex items-center justify-center mx-auto mb-3">
             <CalendarOff className="w-4 h-4 text-muted-foreground" />
           </div>
           <p className="text-sm font-medium text-foreground mb-1">Day off</p>
-          <p className="text-[13px] text-muted-foreground max-w-[260px] mx-auto leading-relaxed">
+          <p className="text-[13px] text-muted-foreground max-w-[260px] mx-auto leading-relaxed mb-4">
             {isBlockedDate
               ? "You've blocked out today as a day off — no schedule needed."
               : "Today isn't one of your work days."}
             {' '}You can change this in Profile.
           </p>
+          <button
+            onClick={() => setDayOffOverride(true)}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium',
+              'bg-secondary text-foreground hover:bg-secondary/80 transition-colors'
+            )}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Plan this day anyway
+          </button>
         </div>
       )}
 
       {/* Loading skeleton (first load only) */}
-      {canUseAI && viewMode === 'today' && !isDayOff && loading && blocks.length === 0 && (
+      {canUseAI && viewMode === 'today' && !effectiveDayOff && loading && blocks.length === 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-1.5 mb-1">
             <Sparkles className="w-3 h-3 text-primary/60 animate-pulse" />
@@ -262,7 +275,7 @@ export default function SchedulePage() {
       )}
 
       {/* Error */}
-      {canUseAI && viewMode === 'today' && !isDayOff && error && (
+      {canUseAI && viewMode === 'today' && !effectiveDayOff && error && (
         <div className="rounded-2xl border border-destructive/25 bg-destructive/5 p-5 text-center">
           <p className="text-sm font-medium text-destructive mb-1">Couldn&apos;t build your schedule</p>
           <p className="text-[12px] text-muted-foreground mb-3">{error}</p>
@@ -276,7 +289,7 @@ export default function SchedulePage() {
       )}
 
       {/* Empty */}
-      {canUseAI && viewMode === 'today' && !isDayOff && !loading && !error && hasGenerated && blocks.length === 0 && (
+      {canUseAI && viewMode === 'today' && !effectiveDayOff && !loading && !error && hasGenerated && blocks.length === 0 && (
         <div className="rounded-2xl border border-border bg-card p-6 text-center">
           <div className="text-2xl mb-2">✨</div>
           <p className="text-sm font-medium text-foreground">Nothing to schedule</p>
@@ -287,7 +300,7 @@ export default function SchedulePage() {
       )}
 
       {/* Timeline */}
-      {canUseAI && viewMode === 'today' && !isDayOff && blocks.length > 0 && (
+      {canUseAI && viewMode === 'today' && !effectiveDayOff && blocks.length > 0 && (
         <div className="space-y-2">
           <AnimatePresence initial={false}>
             {blocks.map((block, i) => (
@@ -360,7 +373,7 @@ export default function SchedulePage() {
       )}
 
       {/* AI notes */}
-      {canUseAI && viewMode === 'today' && !isDayOff && notes.length > 0 && (
+      {canUseAI && viewMode === 'today' && !effectiveDayOff && notes.length > 0 && (
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 space-y-1.5">
           <div className="flex items-center gap-1.5">
             <Sparkles className="w-3 h-3 text-primary/60" />
@@ -373,7 +386,7 @@ export default function SchedulePage() {
       )}
 
       {/* Completed-all-tasks indicator */}
-      {canUseAI && viewMode === 'today' && !isDayOff && hasGenerated && blocks.length > 0 && !blocks.some((b) => b.type === 'task') && (
+      {canUseAI && viewMode === 'today' && !effectiveDayOff && hasGenerated && blocks.length > 0 && !blocks.some((b) => b.type === 'task') && (
         <div className="flex items-center gap-2 text-[12px] text-muted-foreground/60">
           <CheckCircle2 className="w-3.5 h-3.5" />
           No tasks slotted in — just your calendar today.

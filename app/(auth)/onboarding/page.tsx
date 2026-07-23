@@ -8,6 +8,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import { useUserStore } from '@/stores/userStore'
 import { subscribeToPush } from '@/lib/notifications'
 import { cn } from '@/lib/utils'
+import { Analytics } from '@/lib/analytics'
 import type { Task } from '@/types'
 
 type Deadline = 'today' | 'tomorrow' | 'this_week' | 'none'
@@ -85,7 +86,10 @@ function OnboardingContent() {
   }
 
   const handleFinish = async () => {
-    if (!isReplay) await markOnboarded()
+    if (!isReplay) {
+      await markOnboarded()
+      Analytics.onboardingCompleted()
+    }
     router.push('/')
   }
 
@@ -504,7 +508,17 @@ function OnboardingContent() {
                 </div>
               )}
 
-              <div className="mt-auto pt-8">
+              <div className="mt-auto pt-8 space-y-3">
+                {/* PWA install tip */}
+                <div className="rounded-xl border border-border bg-secondary/40 px-4 py-3 flex items-start gap-3">
+                  <span className="text-xl flex-shrink-0">📲</span>
+                  <div>
+                    <p className="text-[12px] font-medium text-foreground">Add to your home screen</p>
+                    <p className="text-[11px] text-muted-foreground/70 mt-0.5 leading-relaxed">
+                      On iPhone: tap the share icon → &ldquo;Add to Home Screen&rdquo;. On Android: tap the menu → &ldquo;Add to Home Screen&rdquo;.
+                    </p>
+                  </div>
+                </div>
                 <button
                   onClick={handleFinish}
                   className="w-full py-4 rounded-2xl border border-border text-[15px] font-medium text-foreground hover:bg-secondary/50 transition-colors"

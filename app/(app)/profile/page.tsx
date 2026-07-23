@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/stores/userStore'
 import { cn } from '@/lib/utils'
 import { APP_VERSION } from '@/lib/version'
+import { AI_TRIAL_DAYS } from '@/lib/constants'
 import ChangelogSheet from '@/components/ui/ChangelogSheet'
 import {
   subscribeToPush, unsubscribeFromPush, isSubscribed,
@@ -64,7 +65,6 @@ export default function ProfilePage() {
 
   const hasBetaAccess = profile?.beta_access === true
   const hasOwnKey = !!profile?.anthropic_key_masked
-  const AI_TRIAL_DAYS = 7
   const trialDaysLeft = profile?.created_at
     ? Math.max(0, AI_TRIAL_DAYS - Math.floor((Date.now() - new Date(profile.created_at).getTime()) / 86400000))
     : 0

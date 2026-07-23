@@ -3,7 +3,10 @@
 import { create } from 'zustand'
 import { createClient } from '@/lib/supabase/client'
 import { saveAccount } from '@/lib/savedAccounts'
+import { Analytics } from '@/lib/analytics'
 import type { UserStore, UserProfile, UserStreak, ScheduleBlockedDate } from '@/types'
+
+const STREAK_MILESTONES = [3, 7, 14, 21, 30, 60, 90, 180, 365]
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'vithusan.business@gmail.com'
 const BETA_MODE_KEY = 'drivn:betaMode'
@@ -57,13 +60,27 @@ export const useUserStore = create<UserStore>((set, get) => ({
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
+    const prevStreak = get().streak?.current_streak ?? 0
+
     const { data } = await supabase
       .from('user_streaks')
       .select('*')
       .eq('user_id', user.id)
       .single()
 
-    if (data) set({ streak: data as UserStreak })
+    if (data) {
+      set({ streak: data as UserStreak })
+      const newStreak = (data as UserStreak).current_streak
+      if (newStreak < prevStreak && prevStreak > 0) {
+        Analytics.streakBroken(prevStreak)
+      } else if (newStreak > prevStreak) {
+        for (const milestone of STREAK_MILESTONES) {
+          if (prevStreak < milestone && newStreak >= milestone) {
+            Analytics.streakMilestone(milestone)
+          }
+        }
+      }
+    }
   },
 
   markOnboarded: async () => {

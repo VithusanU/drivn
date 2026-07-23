@@ -5,6 +5,11 @@ export function trackEvent(event: string, properties?: Record<string, unknown>) 
   posthog.capture(event, properties)
 }
 
+export function identifyUser(userId: string, traits?: Record<string, unknown>) {
+  if (typeof window === 'undefined') return
+  posthog.identify(userId, traits)
+}
+
 export const Analytics = {
   // ── Acquisition ────────────────────────────────────────────────────────────
   signupStarted: (source?: string) =>
@@ -46,6 +51,24 @@ export const Analytics = {
 
   streakBroken: (previousStreak: number) =>
     trackEvent('streak_broken', { previous_streak: previousStreak }),
+
+  // ── AI ──────────────────────────────────────────────────────────────────────
+  aiScheduleGenerated: () =>
+    trackEvent('ai_schedule_generated'),
+
+  // ── Onboarding / trial ──────────────────────────────────────────────────────
+  onboardingCompleted: () =>
+    trackEvent('onboarding_completed'),
+
+  trialExpiring: (daysLeft: number) =>
+    trackEvent('trial_expiring', { days_left: daysLeft }),
+
+  // ── PWA ─────────────────────────────────────────────────────────────────────
+  pwaInstallPrompted: () =>
+    trackEvent('pwa_install_prompted'),
+
+  pwaInstalled: () =>
+    trackEvent('pwa_installed'),
 
   // ── Technical ───────────────────────────────────────────────────────────────
   spotifyRequestFailed: (reason: string) =>

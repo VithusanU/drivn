@@ -11,6 +11,7 @@ import { useContextStore } from '@/stores/contextStore'
 import { useTimerStore } from '@/stores/timerStore'
 import { useSessionStore } from '@/stores/sessionStore'
 import { getReasonLabel, formatEstimatedTime, getRecommendedTask } from '@/lib/engine/recommendation'
+import { AI_TRIAL_DAYS } from '@/lib/constants'
 import { formatDueDate, cn } from '@/lib/utils'
 import type { RecommendationReason } from '@/types'
 
@@ -39,8 +40,6 @@ export default function NextBestAction() {
   const profile = useUserStore((s) => s.profile)
   const hasBetaAccess = profile?.beta_access === true
   const hasOwnKey = !!profile?.anthropic_key_masked
-  // New accounts get a 7-day free trial of AI mode
-  const AI_TRIAL_DAYS = 7
   const isInTrial = profile?.created_at
     ? (Date.now() - new Date(profile.created_at).getTime()) < AI_TRIAL_DAYS * 24 * 60 * 60 * 1000
     : false

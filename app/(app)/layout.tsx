@@ -2,6 +2,8 @@
 
 import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
+import Link from 'next/link'
+import { Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import BottomNav from '@/components/layout/BottomNav'
 import SideNav from '@/components/layout/SideNav'
@@ -15,8 +17,10 @@ import { useUIStore } from '@/stores/uiStore'
 import { useGlobalTimer } from '@/hooks/useGlobalTimer'
 import { useGlobalSpotifyPlayer } from '@/hooks/useGlobalSpotifyPlayer'
 import { usePresenceSync } from '@/hooks/usePresenceSync'
-import { Analytics } from '@/lib/analytics'
+import { Analytics, identifyUser } from '@/lib/analytics'
 import { getReminderTime } from '@/lib/notifications'
+import { AI_TRIAL_DAYS } from '@/lib/constants'
+import InstallBanner from '@/components/ui/InstallBanner'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -27,6 +31,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // this is purely additive: nothing about any other route changes.
   const isHome = pathname === '/'
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
+
+  const profile = useUserStore((s) => s.profile)
+  const trialDaysLeft = profile?.created_at && !profile.beta_access && !profile.anthropic_key_masked
+    ? Math.max(0, AI_TRIAL_DAYS - Math.floor((Date.now() - new Date(profile.created_at).getTime()) / 86400000))
+    : null
+  const showTrialBanner = trialDaysLeft !== null && trialDaysLeft <= 2 && pathname !== '/profile'
 
   const fetchTasks = useTaskStore((s) => s.fetchTasks)
   const fetchHabits = useHabitStore((s) => s.fetchHabits)
@@ -57,7 +67,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       fetchProfile(),
       fetchStreak(),
       fetchEvents(),
-    ])
+    ]).then(() => {
+      // Identify user in PostHog so all events are attributed to this person
+      const p = useUserStore.getState().profile
+      if (p?.id) {
+        identifyUser(p.id, {
+          email: p.email ?? undefined,
+          beta_access: p.beta_access ?? false,
+          has_own_key: !!p.anthropic_key_masked,
+          created_at: p.created_at,
+        })
+      }
+    })
 
     // Track session start once per day
     const today = new Date().toISOString().slice(0, 10)
@@ -92,13 +113,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0 overflow-x-hidden">
+      <main className="flex-1 min-w-0 overflow-x-hidden flex flex-col">
         {/* Bottom padding must clear the fixed mobile BottomNav (60px tall,
             plus env(safe-area-inset-bottom) on notched phones — see
             BottomNav.tsx's `min-h-[60px] pb-safe`). Using calc() here keeps
             the visual gap below the nav constant across devices instead of
             risking content getting tucked behind a taller-than-expected bar
             on iPhones with a home indicator. */}
+        {showTrialBanner && (
+          <Link href="/profile" className="block">
+            <div className="flex items-center justify-center gap-2 px-4 py-2 bg-primary/10 border-b border-primary/20 text-center">
+              <Sparkles className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+              <p className="text-[12px] text-primary font-medium">
+                {trialDaysLeft === 0
+                  ? 'Your AI trial has ended — upgrade to keep your schedule.'
+                  : `${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left in your AI trial — tap to upgrade.`}
+              </p>
+            </div>
+          </Link>
+        )}
         <div className={cn(
           'mx-auto px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-12 pt-safe md:pt-0',
           // Home gets a wider stage at lg:/xl: so its 65/35 grid has room to
@@ -115,6 +148,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <BottomNav />
 
       <UndoToast />
+      <InstallBanner />
     </div>
   )
 }
